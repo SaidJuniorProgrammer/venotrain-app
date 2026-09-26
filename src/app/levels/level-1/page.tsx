@@ -26,9 +26,13 @@ const VENAS_DATA = {
 export default function Level1DragAndDrop() {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
-  // EFECTO PROTECTOR DE RUTAS
+  // EFECTO PROTECTOR Y DETECCIÓN TÁCTIL
   useEffect(() => {
+    // Detectar si es una pantalla táctil para desactivar el Drag & Drop nativo que bloquea los clics
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
     const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
     if (unlocked < 1) {
       router.replace(`/levels/level-${unlocked}`);
@@ -37,7 +41,6 @@ export default function Level1DragAndDrop() {
     }
   }, [router]);
 
-  // Estados de Interacción
   const [zonas, setZonas] = useState<{ [key: string]: string | null }>({
     cefalica: null, mediana: null, basilica: null
   });
@@ -45,16 +48,13 @@ export default function Level1DragAndDrop() {
   const [comprobado, setComprobado] = useState(false);
   const [resultado, setResultado] = useState<{ exitoso: boolean, aciertos: number, mensaje?: string } | null>(null);
   
-  // NUEVO ESTADO: Para el sistema de Toque en Móviles
   const [venaSeleccionada, setVenaSeleccionada] = useState<string | null>(null);
 
-  // Estados de Tiempo y Gamificación
   const [gameStarted, setGameStarted] = useState(false);
   const [initialTime, setInitialTime] = useState(20);
   const [timeLeft, setTimeLeft] = useState(20);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-  // Efecto del Temporizador
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isTimerRunning && timeLeft > 0 && !comprobado) {
@@ -75,12 +75,12 @@ export default function Level1DragAndDrop() {
   };
 
   // =======================================================================
-  // LÓGICA HÍBRIDA: Drag & Drop (PC) + Tap & Place (Móvil)
+  // LÓGICA HÍBRIDA: Drag (PC) + Tap (Móvil)
   // =======================================================================
 
   const handleDragStart = (e: React.DragEvent, idVena: string, origen: string) => {
-    if (comprobado || !isTimerRunning) return;
-    setVenaSeleccionada(null); // Limpiamos selección táctil si usa mouse
+    if (comprobado || !isTimerRunning || isTouchDevice) return;
+    setVenaSeleccionada(null); 
     e.dataTransfer.setData('idVena', idVena);
     e.dataTransfer.setData('origen', origen);
   };
@@ -89,22 +89,19 @@ export default function Level1DragAndDrop() {
 
   const handleDrop = (e: React.DragEvent, zonaDestino: string) => {
     e.preventDefault();
-    if (comprobado || !isTimerRunning) return;
+    if (comprobado || !isTimerRunning || isTouchDevice) return;
 
     const idVena = e.dataTransfer.getData('idVena');
     const origen = e.dataTransfer.getData('origen');
-
     ejecutarMovimiento(idVena, origen, zonaDestino);
   };
 
-  // NUEVA FUNCIÓN: Maneja el toque en la zona de destino para móviles
   const handleZoneClick = (zonaDestino: string) => {
     if (comprobado || !isTimerRunning || !venaSeleccionada) return;
     ejecutarMovimiento(venaSeleccionada, 'banco', zonaDestino);
-    setVenaSeleccionada(null); // Deseleccionar tras mover
+    setVenaSeleccionada(null);
   };
 
-  // Función centralizada para mover piezas (usada por Drag y por Tap)
   const ejecutarMovimiento = (idVena: string, origen: string, zonaDestino: string) => {
     if (origen === zonaDestino) return;
 
@@ -150,7 +147,6 @@ export default function Level1DragAndDrop() {
     setResultado({ exitoso, aciertos });
     setComprobado(true);
 
-    // 🔓 DESBLOQUEAR EL SIGUIENTE NIVEL
     if (exitoso) {
       const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
       if (unlocked < 2) {
@@ -178,21 +174,19 @@ export default function Level1DragAndDrop() {
     setGameStarted(false); 
   };
 
-  // Componente de Etiqueta Actualizado
   const EtiquetaVena = ({ idVena, origen }: { idVena: string, origen: string }) => {
     const isSelected = venaSeleccionada === idVena;
     
     return (
       <div
-        draggable={!comprobado && isTimerRunning}
+        draggable={!isTouchDevice && !comprobado && isTimerRunning}
         onDragStart={(e) => handleDragStart(e, idVena, origen)}
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation(); // CLAVE: Evita que el clic traspase a la zona de abajo
           if (comprobado || !isTimerRunning) return;
           if (origen === 'banco') {
-            // Seleccionar o deseleccionar en celular
             setVenaSeleccionada(prev => prev === idVena ? null : idVena);
           } else {
-            // Si ya está en la imagen, regresarla al banco al tocar
             devolverAlBanco(origen);
           }
         }}
@@ -218,14 +212,13 @@ export default function Level1DragAndDrop() {
   return (
     <main className="min-h-screen bg-[#0B1120] p-4 md:p-8 flex flex-col items-center font-sans select-none">
       
-      {/* HEADER DINÁMICO */}
+      {/* HEADER */}
       <div className="max-w-6xl w-full mb-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl">
         <div>
           <h1 className="text-3xl font-bold text-white mb-1">Nivel 1: Mapeo Anatómico</h1>
           <p className="text-slate-400">Identifica la red venosa de la fosa antecubital.</p>
         </div>
         
-        {/* TEMPORIZADOR VISIBLE SOLO AL INICIAR */}
         {gameStarted && (
           <div className="flex flex-col items-end">
             <span className="text-xs text-slate-500 font-bold tracking-widest uppercase mb-1 flex items-center gap-2">
@@ -244,7 +237,7 @@ export default function Level1DragAndDrop() {
           <Activity className="w-20 h-20 text-cyan-500 mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-white mb-4">Preparación de Insumos</h2>
           <p className="text-slate-300 text-lg mb-4 leading-relaxed">
-            Tu primer objetivo es identificar las 3 venas principales de la fosa antecubital. Arrastra las etiquetas a su lugar correspondiente antes de que el tiempo se agote.
+            Tu primer objetivo es identificar las 3 venas principales de la fosa antecubital. Arrastra (PC) o Toca (Móvil) las etiquetas hacia su lugar correspondiente antes de que el tiempo se agote.
           </p>
           
           <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
@@ -276,53 +269,50 @@ export default function Level1DragAndDrop() {
                 className={`w-full h-full object-contain drop-shadow-xl transition-opacity ${!isTimerRunning && !comprobado ? 'opacity-50' : 'opacity-100'}`}
               />
 
-              {/* ZONA DE DROP: Vena Cefálica */}
+              {/* ZONAS DE DROP */}
               <div 
                 onClick={() => handleZoneClick('cefalica')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'cefalica')}
-                className={`absolute top-[25%] left-[-5%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                className={`absolute top-[25%] left-[-5%] w-32 min-h-[50px] p-2 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
                   ${comprobado ? (zonas.cefalica === 'cefalica' ? 'border-emerald-500' : 'border-red-500') 
                   : (venaSeleccionada && !zonas.cefalica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
               >
-                {zonas.cefalica ? <EtiquetaVena idVena={zonas.cefalica} origen="cefalica" /> : <span className="text-xs text-slate-500 font-medium">Arrastra aquí</span>}
-                <div className="absolute right-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50"></div>
+                {zonas.cefalica ? <EtiquetaVena idVena={zonas.cefalica} origen="cefalica" /> : <span className="text-xs text-slate-500 font-medium">Vacío</span>}
+                <div className="absolute right-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50 pointer-events-none"></div>
               </div>
 
-              {/* ZONA DE DROP: Vena Mediana Cubital */}
               <div 
                 onClick={() => handleZoneClick('mediana')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'mediana')}
-                className={`absolute top-[45%] right-[-10%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                className={`absolute top-[45%] right-[-10%] w-32 min-h-[50px] p-2 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
                   ${comprobado ? (zonas.mediana === 'mediana' ? 'border-emerald-500' : 'border-red-500') 
                   : (venaSeleccionada && !zonas.mediana ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
               >
-                {zonas.mediana ? <EtiquetaVena idVena={zonas.mediana} origen="mediana" /> : <span className="text-xs text-slate-500 font-medium">Arrastra aquí</span>}
-                <div className="absolute left-[-25px] top-1/2 w-6 h-0.5 bg-cyan-500/50"></div>
+                {zonas.mediana ? <EtiquetaVena idVena={zonas.mediana} origen="mediana" /> : <span className="text-xs text-slate-500 font-medium">Vacío</span>}
+                <div className="absolute left-[-25px] top-1/2 w-6 h-0.5 bg-cyan-500/50 pointer-events-none"></div>
               </div>
 
-              {/* ZONA DE DROP: Vena Basílica */}
               <div 
                 onClick={() => handleZoneClick('basilica')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'basilica')}
-                className={`absolute bottom-[20%] right-[-15%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                className={`absolute bottom-[20%] right-[-15%] w-32 min-h-[50px] p-2 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
                   ${comprobado ? (zonas.basilica === 'basilica' ? 'border-emerald-500' : 'border-red-500') 
                   : (venaSeleccionada && !zonas.basilica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
               >
-                {zonas.basilica ? <EtiquetaVena idVena={zonas.basilica} origen="basilica" /> : <span className="text-xs text-slate-500 font-medium">Arrastra aquí</span>}
-                <div className="absolute left-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50"></div>
+                {zonas.basilica ? <EtiquetaVena idVena={zonas.basilica} origen="basilica" /> : <span className="text-xs text-slate-500 font-medium">Vacío</span>}
+                <div className="absolute left-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50 pointer-events-none"></div>
               </div>
             </div>
           </div>
 
-          {/* Panel Derecho: Controles y Feedback */}
+          {/* Panel Derecho: Controles */}
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             
-            {/* Banco de Palabras */}
             <div className="bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest">Banco de Etiquetas</h3>
-                <span className="text-xs text-cyan-500/70 hidden md:flex items-center gap-1"><Pointer className="w-3 h-3"/> Arrastra o toca</span>
-                <span className="text-xs text-cyan-500/70 md:hidden flex items-center gap-1"><Pointer className="w-3 h-3"/> Toca y asigna</span>
+                <span className="text-xs text-cyan-500/70 hidden md:flex items-center gap-1"><Pointer className="w-3 h-3"/> Arrastra o Toca</span>
+                <span className="text-xs text-cyan-500/70 md:hidden flex items-center gap-1"><Pointer className="w-3 h-3"/> 1. Toca  2. Asigna</span>
               </div>
               
               <div 
@@ -337,7 +327,6 @@ export default function Level1DragAndDrop() {
               </div>
             </div>
 
-            {/* Botón de Acción / Resultados */}
             {!comprobado ? (
               <button 
                 onClick={comprobarRespuestas}
@@ -357,7 +346,6 @@ export default function Level1DragAndDrop() {
                   {resultado?.exitoso ? '¡Excelente precisión!' : resultado?.mensaje || `Aciertos: ${resultado?.aciertos} de 3`}
                 </h2>
                 
-                {/* Feedback Dinámico */}
                 <div className="mt-4 space-y-3">
                   {Object.entries(zonas).map(([zona, idVena]) => (
                     idVena && zona === idVena && (
