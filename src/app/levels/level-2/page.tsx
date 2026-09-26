@@ -23,14 +23,14 @@ const PUNTOS_IMAGEN = [
   { id: 'digital_menique', cx: '66%', cy: '50%', color: '#22d3ee' }
 ];
 
-// Clases explícitas para forzar posiciones absolutas SOLO en pantallas grandes (md en adelante)
+// Ajuste para Desktop: Se distribuyen al 15%, 50% y 85% de la altura total
 const DESKTOP_POSITIONS = [
-  'md:left-[2%] lg:left-[4%] md:top-[18%] md:-translate-y-1/2',
+  'md:left-[2%] lg:left-[4%] md:top-[15%] md:-translate-y-1/2',
   'md:left-[2%] lg:left-[4%] md:top-[50%] md:-translate-y-1/2',
-  'md:left-[2%] lg:left-[4%] md:top-[82%] md:-translate-y-1/2',
-  'md:right-[2%] lg:right-[4%] md:top-[18%] md:-translate-y-1/2',
+  'md:left-[2%] lg:left-[4%] md:top-[85%] md:-translate-y-1/2',
+  'md:right-[2%] lg:right-[4%] md:top-[15%] md:-translate-y-1/2',
   'md:right-[2%] lg:right-[4%] md:top-[50%] md:-translate-y-1/2',
-  'md:right-[2%] lg:right-[4%] md:top-[82%] md:-translate-y-1/2'
+  'md:right-[2%] lg:right-[4%] md:top-[85%] md:-translate-y-1/2'
 ];
 
 export default function Level2LineConnector() {
@@ -87,11 +87,10 @@ export default function Level2LineConnector() {
     setIsTimerRunning(true);
   };
 
-  // Motor SVG Inteligente (Detecta Móvil vs PC)
   const actualizarLineas = () => {
     if (!containerRef.current) return;
     const containerRect = containerRef.current.getBoundingClientRect();
-    const isMobile = window.innerWidth < 768; // Tailwind 'md' breakpoint
+    const isMobile = window.innerWidth < 768; 
     
     const nuevasLineas = conexiones.map(c => {
       const btnSlot = slotsRefs.current[c.slotId];
@@ -104,11 +103,9 @@ export default function Level2LineConnector() {
       let x1, y1;
 
       if (isMobile) {
-        // En celular: La línea sale del centro SUPERIOR del botón
         x1 = (slotRect.left + slotRect.width / 2) - containerRect.left;
         y1 = slotRect.top - containerRect.top;
       } else {
-        // En PC: La línea sale de los LADOS del botón
         const isLeftSlot = c.slotId < 3;
         x1 = isLeftSlot ? (slotRect.right - containerRect.left) : (slotRect.left - containerRect.left);
         y1 = (slotRect.top + (slotRect.height / 2)) - containerRect.top;
@@ -238,7 +235,7 @@ export default function Level2LineConnector() {
       ) : (
         <div className="w-full max-w-6xl flex flex-col xl:flex-row gap-8">
           
-          {/* CONTENEDOR PRINCIPAL: Ahora usa flow natural en móvil y heights fijos en PC */}
+          {/* CONTENEDOR PRINCIPAL */}
           <div ref={containerRef} className="relative w-full xl:w-[75%] flex flex-col md:block min-h-[650px] md:h-[600px] bg-[#0F172A] rounded-2xl border border-slate-800 shadow-2xl p-4 md:p-0">
             
             {/* SVG OVERLAY */}
@@ -272,8 +269,8 @@ export default function Level2LineConnector() {
               })}
             </div>
 
-            {/* ZONA DE ETIQUETAS: Grid estricto en móvil, Absoluto en PC */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full z-20 md:block relative mt-auto">
+            {/* SOLUCIÓN AL BUG: md:static para que los absolute hijos referencien a containerRef */}
+            <div className="w-full grid grid-cols-2 gap-2 sm:gap-3 mt-auto md:mt-0 md:block md:static z-20">
               {[0, 1, 2, 3, 4, 5].map(index => {
                 const idAnatomia = etiquetas[index];
                 const dataAnatomia = ANATOMIA_MANO_DATA.find(d => d.id === idAnatomia);
