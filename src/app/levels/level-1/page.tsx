@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Clock, PlayCircle, Activity, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Clock, PlayCircle, Activity, CheckCircle, XCircle, AlertCircle, Pointer } from 'lucide-react';
 
 const VENAS_DATA = {
   cefalica: {
@@ -44,6 +44,9 @@ export default function Level1DragAndDrop() {
   const [banco, setBanco] = useState<string[]>(['cefalica', 'mediana', 'basilica']);
   const [comprobado, setComprobado] = useState(false);
   const [resultado, setResultado] = useState<{ exitoso: boolean, aciertos: number, mensaje?: string } | null>(null);
+  
+  // NUEVO ESTADO: Para el sistema de Toque en Móviles
+  const [venaSeleccionada, setVenaSeleccionada] = useState<string | null>(null);
 
   // Estados de Tiempo y Gamificación
   const [gameStarted, setGameStarted] = useState(false);
@@ -59,6 +62,7 @@ export default function Level1DragAndDrop() {
     } else if (timeLeft === 0 && !comprobado) {
       setIsTimerRunning(false);
       setComprobado(true);
+      setVenaSeleccionada(null);
       setResultado({ exitoso: false, aciertos: 0, mensaje: '¡Tiempo agotado! El retraso compromete la hidratación del paciente.' });
     }
     return () => clearInterval(timer);
@@ -70,9 +74,13 @@ export default function Level1DragAndDrop() {
     setIsTimerRunning(true);
   };
 
-  // Funciones nativas de Drag & Drop HTML5
+  // =======================================================================
+  // LÓGICA HÍBRIDA: Drag & Drop (PC) + Tap & Place (Móvil)
+  // =======================================================================
+
   const handleDragStart = (e: React.DragEvent, idVena: string, origen: string) => {
     if (comprobado || !isTimerRunning) return;
+    setVenaSeleccionada(null); // Limpiamos selección táctil si usa mouse
     e.dataTransfer.setData('idVena', idVena);
     e.dataTransfer.setData('origen', origen);
   };
@@ -86,6 +94,18 @@ export default function Level1DragAndDrop() {
     const idVena = e.dataTransfer.getData('idVena');
     const origen = e.dataTransfer.getData('origen');
 
+    ejecutarMovimiento(idVena, origen, zonaDestino);
+  };
+
+  // NUEVA FUNCIÓN: Maneja el toque en la zona de destino para móviles
+  const handleZoneClick = (zonaDestino: string) => {
+    if (comprobado || !isTimerRunning || !venaSeleccionada) return;
+    ejecutarMovimiento(venaSeleccionada, 'banco', zonaDestino);
+    setVenaSeleccionada(null); // Deseleccionar tras mover
+  };
+
+  // Función centralizada para mover piezas (usada por Drag y por Tap)
+  const ejecutarMovimiento = (idVena: string, origen: string, zonaDestino: string) => {
     if (origen === zonaDestino) return;
 
     if (origen === 'banco') {
@@ -115,8 +135,11 @@ export default function Level1DragAndDrop() {
     }
   };
 
+  // =======================================================================
+
   const comprobarRespuestas = async () => {
     setIsTimerRunning(false);
+    setVenaSeleccionada(null);
     
     const aciertos = 
       (zonas.cefalica === 'cefalica' ? 1 : 0) +
@@ -150,26 +173,42 @@ export default function Level1DragAndDrop() {
     setBanco(['cefalica', 'mediana', 'basilica']);
     setComprobado(false);
     setResultado(null);
+    setVenaSeleccionada(null);
     setInitialTime(prev => Math.max(5, prev - 5)); 
     setGameStarted(false); 
   };
 
-  const EtiquetaVena = ({ idVena, origen }: { idVena: string, origen: string }) => (
-    <div
-      draggable={!comprobado && isTimerRunning}
-      onDragStart={(e) => handleDragStart(e, idVena, origen)}
-      onClick={() => origen !== 'banco' && devolverAlBanco(origen)}
-      className={`px-3 py-2 rounded-lg text-sm font-semibold cursor-grab active:cursor-grabbing text-center shadow-md transition-all flex items-center gap-2
-        ${comprobado 
-          ? (zonas[origen] === origen ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white') 
-          : 'bg-[#1E293B] text-cyan-400 hover:bg-[#334155] hover:text-cyan-300 border border-slate-600'
-        } ${(!isTimerRunning && !comprobado) && 'opacity-50 cursor-not-allowed'}
-      `}
-    >
-      <Activity className="w-4 h-4 opacity-70" />
-      {VENAS_DATA[idVena as keyof typeof VENAS_DATA].nombre}
-    </div>
-  );
+  // Componente de Etiqueta Actualizado
+  const EtiquetaVena = ({ idVena, origen }: { idVena: string, origen: string }) => {
+    const isSelected = venaSeleccionada === idVena;
+    
+    return (
+      <div
+        draggable={!comprobado && isTimerRunning}
+        onDragStart={(e) => handleDragStart(e, idVena, origen)}
+        onClick={() => {
+          if (comprobado || !isTimerRunning) return;
+          if (origen === 'banco') {
+            // Seleccionar o deseleccionar en celular
+            setVenaSeleccionada(prev => prev === idVena ? null : idVena);
+          } else {
+            // Si ya está en la imagen, regresarla al banco al tocar
+            devolverAlBanco(origen);
+          }
+        }}
+        className={`px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer text-center shadow-md transition-all flex items-center gap-2
+          ${isSelected ? 'ring-2 ring-cyan-400 scale-105 bg-[#334155] text-cyan-300' : ''}
+          ${comprobado 
+            ? (zonas[origen] === origen ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white') 
+            : !isSelected ? 'bg-[#1E293B] text-cyan-400 hover:bg-[#334155] hover:text-cyan-300 border border-slate-600' : ''
+          } ${(!isTimerRunning && !comprobado) && 'opacity-50 cursor-not-allowed'}
+        `}
+      >
+        <Activity className="w-4 h-4 opacity-70" />
+        {VENAS_DATA[idVena as keyof typeof VENAS_DATA].nombre}
+      </div>
+    );
+  };
 
   const isTimeCritical = timeLeft <= 15 && isTimerRunning;
   const timeColor = isTimeCritical ? 'text-red-500 animate-pulse' : 'text-cyan-400';
@@ -229,7 +268,7 @@ export default function Level1DragAndDrop() {
         <div className="flex flex-col lg:flex-row gap-8 max-w-6xl w-full items-start">
           
           {/* Panel Izquierdo: Imagen interactiva */}
-          <div className="relative w-full lg:w-1/2 flex justify-center bg-[#0F172A] rounded-2xl p-4 border border-slate-800 shadow-2xl">
+          <div className="relative w-full lg:w-1/2 flex justify-center bg-[#0F172A] rounded-2xl p-4 border border-slate-800 shadow-2xl overflow-hidden">
             <div className="relative w-full max-w-[350px] aspect-[4/5]">
               <img 
                 src="/images/brazo convenas.png" 
@@ -239,9 +278,11 @@ export default function Level1DragAndDrop() {
 
               {/* ZONA DE DROP: Vena Cefálica */}
               <div 
+                onClick={() => handleZoneClick('cefalica')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'cefalica')}
-                className={`absolute top-[25%] left-[-5%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10
-                  ${comprobado ? (zonas.cefalica === 'cefalica' ? 'border-emerald-500' : 'border-red-500') : 'border-cyan-500/50'}`}
+                className={`absolute top-[25%] left-[-5%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                  ${comprobado ? (zonas.cefalica === 'cefalica' ? 'border-emerald-500' : 'border-red-500') 
+                  : (venaSeleccionada && !zonas.cefalica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
               >
                 {zonas.cefalica ? <EtiquetaVena idVena={zonas.cefalica} origen="cefalica" /> : <span className="text-xs text-slate-500 font-medium">Arrastra aquí</span>}
                 <div className="absolute right-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50"></div>
@@ -249,9 +290,11 @@ export default function Level1DragAndDrop() {
 
               {/* ZONA DE DROP: Vena Mediana Cubital */}
               <div 
+                onClick={() => handleZoneClick('mediana')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'mediana')}
-                className={`absolute top-[45%] right-[-10%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10
-                  ${comprobado ? (zonas.mediana === 'mediana' ? 'border-emerald-500' : 'border-red-500') : 'border-cyan-500/50'}`}
+                className={`absolute top-[45%] right-[-10%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                  ${comprobado ? (zonas.mediana === 'mediana' ? 'border-emerald-500' : 'border-red-500') 
+                  : (venaSeleccionada && !zonas.mediana ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
               >
                 {zonas.mediana ? <EtiquetaVena idVena={zonas.mediana} origen="mediana" /> : <span className="text-xs text-slate-500 font-medium">Arrastra aquí</span>}
                 <div className="absolute left-[-25px] top-1/2 w-6 h-0.5 bg-cyan-500/50"></div>
@@ -259,9 +302,11 @@ export default function Level1DragAndDrop() {
 
               {/* ZONA DE DROP: Vena Basílica */}
               <div 
+                onClick={() => handleZoneClick('basilica')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'basilica')}
-                className={`absolute bottom-[20%] right-[-15%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10
-                  ${comprobado ? (zonas.basilica === 'basilica' ? 'border-emerald-500' : 'border-red-500') : 'border-cyan-500/50'}`}
+                className={`absolute bottom-[20%] right-[-15%] w-32 min-h-[40px] p-1 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                  ${comprobado ? (zonas.basilica === 'basilica' ? 'border-emerald-500' : 'border-red-500') 
+                  : (venaSeleccionada && !zonas.basilica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
               >
                 {zonas.basilica ? <EtiquetaVena idVena={zonas.basilica} origen="basilica" /> : <span className="text-xs text-slate-500 font-medium">Arrastra aquí</span>}
                 <div className="absolute left-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50"></div>
@@ -274,10 +319,16 @@ export default function Level1DragAndDrop() {
             
             {/* Banco de Palabras */}
             <div className="bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl">
-              <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-4">Banco de Etiquetas</h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest">Banco de Etiquetas</h3>
+                <span className="text-xs text-cyan-500/70 hidden md:flex items-center gap-1"><Pointer className="w-3 h-3"/> Arrastra o toca</span>
+                <span className="text-xs text-cyan-500/70 md:hidden flex items-center gap-1"><Pointer className="w-3 h-3"/> Toca y asigna</span>
+              </div>
+              
               <div 
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'banco')}
-                className="flex flex-wrap gap-3 min-h-[70px] p-4 bg-[#0B1120] rounded-xl border border-dashed border-slate-700"
+                className={`flex flex-wrap gap-3 min-h-[70px] p-4 rounded-xl border border-dashed transition-colors
+                  ${venaSeleccionada ? 'bg-cyan-950/20 border-cyan-800' : 'bg-[#0B1120] border-slate-700'}`}
               >
                 {banco.length === 0 && <span className="text-slate-500 text-sm italic w-full text-center flex items-center justify-center gap-2"><CheckCircle className="w-4 h-4" /> Todas las etiquetas ubicadas</span>}
                 {banco.map(id => (
