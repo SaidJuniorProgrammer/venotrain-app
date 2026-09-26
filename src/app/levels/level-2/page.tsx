@@ -17,7 +17,6 @@ const ANATOMIA_MANO_DATA = [
   { id: 'digital_menique', nombre: 'Vena Dorsal Digital (Índice)' }
 ];
 
-// Coordenadas calculadas exactamente para "Mano con venas.png"
 const PUNTOS_IMAGEN = [
   { id: 'vena_cefalica', cx: '45%', cy: '13%', color: '#22d3ee' },
   { id: 'vena_basilica', cx: '15%', cy: '24%', color: '#22d3ee' }, 
@@ -27,20 +26,20 @@ const PUNTOS_IMAGEN = [
   { id: 'digital_menique', cx: '66%', cy: '50%', color: '#22d3ee' }
 ];
 
+// Reconfigurado para Responsive Design: Cuadrícula en móvil, Absoluto en PC
 const SLOTS_ETIQUETAS = [
-  { slotId: 0, style: { left: '4%', top: '25%' } }, 
-  { slotId: 1, style: { left: '4%', top: '50%' } }, 
-  { slotId: 2, style: { left: '4%', top: '75%' } },
-  { slotId: 3, style: { right: '4%', top: '25%' } }, 
-  { slotId: 4, style: { right: '4%', top: '50%' } }, 
-  { slotId: 5, style: { right: '4%', top: '75%' } }
+  { slotId: 0, desktopClass: 'md:left-[2%] lg:left-[4%] md:top-[25%] md:-translate-y-1/2' },
+  { slotId: 1, desktopClass: 'md:left-[2%] lg:left-[4%] md:top-[50%] md:-translate-y-1/2' },
+  { slotId: 2, desktopClass: 'md:left-[2%] lg:left-[4%] md:top-[75%] md:-translate-y-1/2' },
+  { slotId: 3, desktopClass: 'md:right-[2%] lg:right-[4%] md:top-[25%] md:-translate-y-1/2' },
+  { slotId: 4, desktopClass: 'md:right-[2%] lg:right-[4%] md:top-[50%] md:-translate-y-1/2' },
+  { slotId: 5, desktopClass: 'md:right-[2%] lg:right-[4%] md:top-[75%] md:-translate-y-1/2' }
 ];
 
 export default function Level2LineConnector() {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
 
-  // EFECTO PROTECTOR DE RUTAS
   useEffect(() => {
     const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
     if (unlocked < 2) {
@@ -56,7 +55,6 @@ export default function Level2LineConnector() {
   const [comprobado, setComprobado] = useState(false);
   const [resultado, setResultado] = useState<{ exitoso: boolean, aciertos: number, mensaje?: string } | null>(null);
 
-  // Estados de Gamificación y Tiempo
   const [gameStarted, setGameStarted] = useState(false);
   const [initialTime, setInitialTime] = useState(30);
   const [timeLeft, setTimeLeft] = useState(30);
@@ -67,7 +65,6 @@ export default function Level2LineConnector() {
   const puntosRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
   const [lineasCoords, setLineasCoords] = useState<{ id: string, x1: number, y1: number, x2: number, y2: number, color: string }[]>([]);
 
-  // Barajar etiquetas al inicio
   useEffect(() => {
     const barajadas = [...ANATOMIA_MANO_DATA].sort(() => Math.random() - 0.5);
     const nuevasEtiquetas: { [key: number]: string } = {};
@@ -75,7 +72,6 @@ export default function Level2LineConnector() {
     setEtiquetas(nuevasEtiquetas);
   }, []);
 
-  // Efecto del Temporizador
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (isTimerRunning && timeLeft > 0 && !comprobado) {
@@ -94,7 +90,6 @@ export default function Level2LineConnector() {
     setIsTimerRunning(true);
   };
 
-  // Motor de renderizado de SVG
   const actualizarLineas = () => {
     if (!containerRef.current) return;
     const containerRect = containerRef.current.getBoundingClientRect();
@@ -122,13 +117,14 @@ export default function Level2LineConnector() {
     setLineasCoords(nuevasLineas);
   };
 
+  // Se añaden setTimeout leves en el resize para asegurar que el DOM se acomodó en móvil
   useEffect(() => {
     actualizarLineas();
-    window.addEventListener('resize', actualizarLineas);
-    return () => window.removeEventListener('resize', actualizarLineas);
+    const handleResize = () => setTimeout(actualizarLineas, 100);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, [conexiones, comprobado, etiquetas]);
 
-  // Interacción Clínica
   const manejarClicSlot = (slotId: number) => {
     if (comprobado || !isTimerRunning) return;
     if (seleccion?.tipo === 'punto') { crearConexion(slotId, seleccion.id); } 
@@ -162,7 +158,6 @@ export default function Level2LineConnector() {
     setResultado({ exitoso, aciertos });
     setComprobado(true);
 
-    // 🔓 DESBLOQUEAR EL SIGUIENTE NIVEL
     if (exitoso) {
       const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
       if (unlocked < 3) {
@@ -181,22 +176,15 @@ export default function Level2LineConnector() {
   };
 
   const reintentar = () => {
-    // 1. Vaciamos las conexiones y el render del SVG
     setConexiones([]);
     setLineasCoords([]);
-    
-    // 2. Limpiamos los estados de validación
     setSeleccion(null);
     setComprobado(false);
     setResultado(null);
-    
-    // 3. Barajamos nuevamente las etiquetas para el nuevo intento
     const barajadas = [...ANATOMIA_MANO_DATA].sort(() => Math.random() - 0.5);
     const nuevasEtiquetas: { [key: number]: string } = {};
     barajadas.forEach((item, index) => { nuevasEtiquetas[index] = item.id; });
     setEtiquetas(nuevasEtiquetas);
-    
-    // 4. Aplicamos penalización y reiniciamos pantalla
     setInitialTime(prev => Math.max(5, prev - 5)); 
     setGameStarted(false);
   };
@@ -209,7 +197,6 @@ export default function Level2LineConnector() {
   return (
     <main className="min-h-screen bg-[#0B1120] p-4 md:p-8 flex flex-col items-center font-sans overflow-hidden select-none">
       
-      {/* HEADER DINÁMICO */}
       <div className="max-w-6xl w-full mb-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl">
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Nivel 2: Mapeo de la Mano</h1>
@@ -229,12 +216,11 @@ export default function Level2LineConnector() {
       </div>
 
       {!gameStarted ? (
-        /* PANTALLA DE PREPARACIÓN */
         <div className="max-w-2xl w-full bg-[#1E293B] p-10 rounded-3xl border border-slate-700 text-center shadow-2xl mt-10">
           <Activity className="w-20 h-20 text-cyan-500 mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-white mb-4">Reconocimiento Dorsal</h2>
           <p className="text-slate-300 text-lg mb-4 leading-relaxed">
-            Identifica las 6 estructuras venosas del dorso de la mano. Selecciona una etiqueta lateral y toca el punto anatómico correcto para conectarlas.
+            Identifica las 6 estructuras venosas del dorso de la mano. Toca una etiqueta y luego toca el punto anatómico correcto para conectarlas.
           </p>
           
           <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
@@ -254,18 +240,20 @@ export default function Level2LineConnector() {
           </button>
         </div>
       ) : (
-        /* TABLERO INTERACTIVO */
         <div className="w-full max-w-6xl flex flex-col xl:flex-row gap-8">
           
-          <div ref={containerRef} className="relative w-full xl:w-[75%] h-[600px] bg-[#0F172A] rounded-2xl border border-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex-shrink-0">
+          {/* CONTENEDOR PRINCIPAL: Flex en móvil, height fijo en Desktop */}
+          <div ref={containerRef} className="relative w-full xl:w-[75%] flex flex-col md:block min-h-[600px] md:h-[600px] bg-[#0F172A] rounded-2xl border border-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex-shrink-0 p-4 md:p-0">
             
-            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
+            {/* SVG OVERLAY (Cubre todo el recuadro para trazar las líneas libres) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ minHeight: '100%' }}>
               {lineasCoords.map(linea => (
                 <line key={linea.id} x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} stroke={linea.color} strokeWidth="2.5" strokeLinecap="round" className="animate-pulse drop-shadow-md" />
               ))}
             </svg>
 
-            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[450px]">
+            {/* IMAGEN DE LA MANO (Arriba en móvil, Centrada en PC) */}
+            <div className="relative md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full max-w-[320px] h-[380px] md:h-[450px] mx-auto z-10 mt-2 md:mt-0">
               <img src="/images/Mano con venas.png" alt="Anatomía Mano Venas" className={`w-full h-full object-cover opacity-90 drop-shadow-2xl pointer-events-none transition-opacity ${!isTimerRunning && !comprobado ? 'opacity-50' : 'opacity-100'}`} />
               
               {PUNTOS_IMAGEN.map(punto => {
@@ -282,49 +270,50 @@ export default function Level2LineConnector() {
                       ${esSeleccionado ? 'scale-150 ring-4 ring-white/50' : ''} 
                       ${estaConectado ? 'bg-[#0F172A]' : 'bg-white'}
                     `}
-                    style={{ 
-                      left: punto.cx, top: punto.cy, borderColor: punto.color, 
-                      boxShadow: `0 0 15px ${punto.color}`, transform: 'translate(-50%, -50%)' 
-                    }}
+                    style={{ left: punto.cx, top: punto.cy, borderColor: punto.color, boxShadow: `0 0 15px ${punto.color}`, transform: 'translate(-50%, -50%)' }}
                   />
                 )
               })}
             </div>
 
-            {SLOTS_ETIQUETAS.map(slot => {
-              const idAnatomia = etiquetas[slot.slotId];
-              const dataAnatomia = ANATOMIA_MANO_DATA.find(d => d.id === idAnatomia);
-              const conexion = conexiones.find(c => c.slotId === slot.slotId);
-              const esSeleccionado = seleccion?.tipo === 'slot' && seleccion.id === slot.slotId;
-              
-              let bgClass = 'bg-[#1E293B]'; let borderClass = 'border-slate-600'; let textClass = 'text-slate-300';
-              
-              if (comprobado && conexion) {
-                const esCorrecto = etiquetas[slot.slotId] === conexion.puntoId;
-                bgClass = esCorrecto ? 'bg-emerald-900' : 'bg-red-900'; borderClass = esCorrecto ? 'border-emerald-500' : 'border-red-500'; textClass = 'text-white font-bold';
-              } else if (esSeleccionado) { 
-                borderClass = 'border-cyan-400'; bgClass = 'bg-[#334155]'; textClass = 'text-cyan-300';
-              } else if (conexion) { 
-                borderClass = 'border-cyan-600'; 
-              }
+            {/* ZONA DE ETIQUETAS: Cuadrícula en móvil, Absoluto a los lados en PC */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full mt-6 z-20 md:mt-0 md:block">
+              {SLOTS_ETIQUETAS.map(slot => {
+                const idAnatomia = etiquetas[slot.slotId];
+                const dataAnatomia = ANATOMIA_MANO_DATA.find(d => d.id === idAnatomia);
+                const conexion = conexiones.find(c => c.slotId === slot.slotId);
+                const esSeleccionado = seleccion?.tipo === 'slot' && seleccion.id === slot.slotId;
+                
+                let bgClass = 'bg-[#1E293B]'; let borderClass = 'border-slate-600'; let textClass = 'text-slate-300';
+                
+                if (comprobado && conexion) {
+                  const esCorrecto = etiquetas[slot.slotId] === conexion.puntoId;
+                  bgClass = esCorrecto ? 'bg-emerald-900' : 'bg-red-900'; borderClass = esCorrecto ? 'border-emerald-500' : 'border-red-500'; textClass = 'text-white font-bold';
+                } else if (esSeleccionado) { 
+                  borderClass = 'border-cyan-400'; bgClass = 'bg-[#334155]'; textClass = 'text-cyan-300';
+                } else if (conexion) { 
+                  borderClass = 'border-cyan-600'; 
+                }
 
-              return (
-                <div key={`slot-${slot.slotId}`} className={`absolute flex items-center z-20 ${(!isTimerRunning && !comprobado) ? 'opacity-50 pointer-events-none' : ''}`} style={{ ...slot.style, transform: 'translateY(-50%)' }}>
-                  <button 
-                    ref={el => { slotsRefs.current[slot.slotId] = el; }} 
-                    onClick={() => manejarClicSlot(slot.slotId)} 
-                    className={`w-[220px] md:w-[260px] h-[52px] rounded-lg border flex items-center justify-center px-3 transition-all shadow-lg text-xs md:text-sm shadow-black/50 hover:bg-[#334155] ${bgClass} ${borderClass} ${textClass}`}
-                  >
-                    <span className="text-center leading-tight font-medium">{dataAnatomia?.nombre || '...'}</span>
-                  </button>
-                  {conexion && !comprobado && (
-                    <button onClick={(e) => { e.stopPropagation(); borrarConexion(slot.slotId); }} className={`absolute -top-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow-lg hover:scale-110 z-30 ${slot.style.left ? '-right-2' : '-left-2'}`}>✕</button>
-                  )}
-                </div>
-              )
-            })}
+                return (
+                  <div key={`slot-${slot.slotId}`} className={`relative md:absolute flex items-center justify-center w-full md:w-auto ${slot.desktopClass} ${(!isTimerRunning && !comprobado) ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <button 
+                      ref={el => { slotsRefs.current[slot.slotId] = el; }} 
+                      onClick={() => manejarClicSlot(slot.slotId)} 
+                      className={`w-full md:w-[200px] lg:w-[240px] xl:w-[260px] h-[48px] md:h-[52px] rounded-lg border flex items-center justify-center px-1 sm:px-3 transition-all shadow-lg text-[11px] sm:text-xs md:text-sm shadow-black/50 hover:bg-[#334155] ${bgClass} ${borderClass} ${textClass}`}
+                    >
+                      <span className="text-center leading-tight font-medium line-clamp-2">{dataAnatomia?.nombre || '...'}</span>
+                    </button>
+                    {conexion && !comprobado && (
+                      <button onClick={(e) => { e.stopPropagation(); borrarConexion(slot.slotId); }} className={`absolute -top-1.5 -right-1.5 md:-top-2 w-5 h-5 md:w-6 md:h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] md:text-xs shadow-lg hover:scale-110 z-30 md:${slot.desktopClass.includes('right') ? '-left-2' : '-right-2'}`}>✕</button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
+          {/* PANEL DE CONTROL DERECHO */}
           <div className="w-full xl:w-[25%] flex flex-col gap-6">
             <div className="bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl h-full flex flex-col justify-center">
               
