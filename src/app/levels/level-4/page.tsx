@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertTriangle, Clock, Activity, CheckCircle, XCircle, ShieldAlert, AlertCircle, PlayCircle } from 'lucide-react';
+import { AlertTriangle, Clock, Activity, CheckCircle, XCircle, ShieldAlert, AlertCircle, PlayCircle, Pointer } from 'lucide-react';
 
 // ============================================================================
 // BASE DE DATOS LOCAL DE CASOS DE EMERGENCIA (5 Escenarios Aleatorios)
@@ -84,9 +84,11 @@ const EMERGENCY_CASES = [
 export default function Level4Urgency() {
   const router = useRouter();
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   // EFECTO PROTECTOR DE RUTAS
   useEffect(() => {
+    setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
     const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
     if (unlocked < 4) {
       router.replace(`/levels/level-${unlocked}`);
@@ -100,10 +102,13 @@ export default function Level4Urgency() {
   const [slots, setSlots] = useState<{ [key: number]: string }>({});
   const [comprobado, setComprobado] = useState(false);
   const [resultado, setResultado] = useState<{ exitoso: boolean, mensaje: string } | null>(null);
+  
+  // ESTADO PARA SISTEMA TÁCTIL
+  const [accionSeleccionada, setAccionSeleccionada] = useState<string | null>(null);
 
   // Gamificación y Tiempo
   const [gameStarted, setGameStarted] = useState(false);
-  const [initialTime, setInitialTime] = useState(60); // Tiempo inicial para Código Rojo
+  const [initialTime, setInitialTime] = useState(60);
   const [timeLeft, setTimeLeft] = useState(60);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
@@ -115,12 +120,12 @@ export default function Level4Urgency() {
     } else if (timeLeft === 0 && !comprobado) {
       setIsTimerRunning(false);
       setComprobado(true);
+      setAccionSeleccionada(null);
       setResultado({ exitoso: false, mensaje: '¡Tiempo agotado! La demora en actuar puso al paciente en riesgo grave.' });
     }
     return () => clearInterval(timer);
   }, [isTimerRunning, timeLeft, comprobado]);
 
-  // Iniciar Juego y Elegir Caso Aleatorio
   const startGame = () => {
     const randomCase = EMERGENCY_CASES[Math.floor(Math.random() * EMERGENCY_CASES.length)];
     setActiveCase(randomCase);
@@ -131,10 +136,11 @@ export default function Level4Urgency() {
   };
 
   // ============================================================================
-  // DRAG & DROP
+  // LÓGICA HÍBRIDA (Drag/Tap)
   // ============================================================================
   const handleDragStart = (e: React.DragEvent, actionId: string) => {
-    if (comprobado || !isTimerRunning) return;
+    if (comprobado || !isTimerRunning || isTouchDevice) return;
+    setAccionSeleccionada(null);
     e.dataTransfer.setData('actionId', actionId);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -146,19 +152,26 @@ export default function Level4Urgency() {
 
   const handleDrop = (e: React.DragEvent, slotIndex: number) => {
     e.preventDefault();
-    if (comprobado || !isTimerRunning) return;
-    
+    if (comprobado || !isTimerRunning || isTouchDevice) return;
     const actionId = e.dataTransfer.getData('actionId');
-    if (actionId) {
-      setSlots(prev => {
-        const newSlots = { ...prev };
-        Object.keys(newSlots).forEach(key => {
-          if (newSlots[parseInt(key)] === actionId) delete newSlots[parseInt(key)];
-        });
-        newSlots[slotIndex] = actionId;
-        return newSlots;
+    if (actionId) ejecutarMovimiento(actionId, slotIndex);
+  };
+
+  const handleZoneClick = (slotIndex: number) => {
+    if (comprobado || !isTimerRunning || !accionSeleccionada) return;
+    ejecutarMovimiento(accionSeleccionada, slotIndex);
+    setAccionSeleccionada(null);
+  };
+
+  const ejecutarMovimiento = (actionId: string, slotIndex: number) => {
+    setSlots(prev => {
+      const newSlots = { ...prev };
+      Object.keys(newSlots).forEach(key => {
+        if (newSlots[parseInt(key)] === actionId) delete newSlots[parseInt(key)];
       });
-    }
+      newSlots[slotIndex] = actionId;
+      return newSlots;
+    });
   };
 
   const removeActionFromSlot = (slotIndex: number) => {
@@ -176,6 +189,7 @@ export default function Level4Urgency() {
   const comprobarProtocolo = async () => {
     setIsTimerRunning(false);
     setComprobado(true);
+    setAccionSeleccionada(null);
 
     let isPerfect = true;
     let errorMsg = '';
@@ -203,7 +217,6 @@ export default function Level4Urgency() {
 
     setResultado({ exitoso: isPerfect, mensaje: isPerfect ? '¡Excelente! Protocolo aplicado correctamente. Paciente estabilizado.' : errorMsg });
 
-    // DESBLOQUEAR EL SIGUIENTE NIVEL
     if (isPerfect) {
       const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
       if (unlocked < 5) {
@@ -224,8 +237,9 @@ export default function Level4Urgency() {
     setSlots({});
     setComprobado(false);
     setResultado(null);
-    setInitialTime(prev => Math.max(10, prev - 10)); // Penalización: -10s por intento (mínimo 10s)
-    setGameStarted(false); // Vuelve a la pantalla de preparación
+    setAccionSeleccionada(null);
+    setInitialTime(prev => Math.max(10, prev - 10)); 
+    setGameStarted(false); 
   };
 
   const isTimeCritical = timeLeft <= 10 && isTimerRunning;
@@ -237,7 +251,6 @@ export default function Level4Urgency() {
   return (
     <main className={`min-h-screen ${containerBg} p-4 md:p-8 flex flex-col items-center font-sans select-none transition-colors duration-500 border-[10px]`}>
       
-      {/* HEADER DE EMERGENCIA */}
       <div className="max-w-6xl w-full mb-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-2xl">
         <div className="flex items-center gap-4 w-full">
           <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center border border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.2)] flex-shrink-0">
@@ -249,7 +262,6 @@ export default function Level4Urgency() {
           </div>
         </div>
         
-        {/* TEMPORIZADOR VISIBLE SOLO AL INICIAR */}
         {gameStarted && (
           <div className="flex flex-col items-end flex-shrink-0">
             <span className="text-xs text-slate-500 font-bold tracking-widest uppercase mb-1 flex items-center gap-2">
@@ -263,7 +275,6 @@ export default function Level4Urgency() {
       </div>
 
       {!gameStarted ? (
-        /* PANTALLA DE PREPARACIÓN (TEMA ROJO URGENCIA) */
         <div className="max-w-3xl w-full bg-[#1E293B] p-10 rounded-3xl border border-red-900/50 text-center shadow-[0_0_40px_rgba(220,38,38,0.15)] mt-10 relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-red-500/5 to-transparent pointer-events-none" />
           <ShieldAlert className="w-20 h-20 text-red-500 mx-auto mb-6 drop-shadow-[0_0_15px_rgba(220,38,38,0.4)]" />
@@ -290,33 +301,43 @@ export default function Level4Urgency() {
           </button>
         </div>
       ) : (
-        /* TABLERO DE JUEGO */
         <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-6 transition-opacity duration-500">
           
           {/* PANEL IZQUIERDO: ACCIONES DISPONIBLES */}
           <div className="w-full lg:w-1/2 flex flex-col gap-4">
-            
             <div className="bg-[#1E293B] p-5 rounded-xl border border-slate-700 shadow-md mb-2">
               <h3 className="text-cyan-400 font-bold text-lg mb-1">{activeCase.title}</h3>
               <h4 className="text-white font-medium mb-2">Paciente: {activeCase.patient}</h4>
               <p className="text-slate-300 text-sm leading-relaxed">{activeCase.description}</p>
             </div>
 
-            <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1 px-2">Acciones Clínicas</h3>
+            <div className="flex items-center justify-between mb-1 px-2">
+              <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest">Acciones Clínicas</h3>
+              <span className="text-xs text-red-500/70 hidden md:flex items-center gap-1"><Pointer className="w-3 h-3"/> Arrastra o toca</span>
+              <span className="text-xs text-red-500/70 md:hidden flex items-center gap-1"><Pointer className="w-3 h-3"/> 1. Toca 2. Asigna</span>
+            </div>
             
             <div className="flex flex-col gap-3">
-              {availableActions.filter((a: any) => !Object.values(slots).includes(a.id)).map((action: any) => (
-                <div
-                  key={action.id}
-                  draggable={!comprobado && isTimerRunning}
-                  onDragStart={(e) => handleDragStart(e, action.id)}
-                  className={`p-4 rounded-xl cursor-grab active:cursor-grabbing border bg-[#1E293B] border-slate-600 shadow-md transition-colors flex items-center gap-3
-                    ${(!isTimerRunning && !comprobado) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#334155]'}`}
-                >
-                  <Activity className="w-5 h-5 text-cyan-500 flex-shrink-0" />
-                  <span className="text-slate-200 font-medium text-sm md:text-base leading-snug">{action.text}</span>
-                </div>
-              ))}
+              {availableActions.filter((a: any) => !Object.values(slots).includes(a.id)).map((action: any) => {
+                const isSelected = accionSeleccionada === action.id;
+                return (
+                  <div
+                    key={action.id}
+                    draggable={!isTouchDevice && !comprobado && isTimerRunning}
+                    onDragStart={(e) => handleDragStart(e, action.id)}
+                    onClick={() => {
+                      if (comprobado || !isTimerRunning) return;
+                      setAccionSeleccionada(prev => prev === action.id ? null : action.id);
+                    }}
+                    className={`p-4 rounded-xl cursor-pointer border shadow-md transition-all flex items-center gap-3
+                      ${isSelected ? 'ring-2 ring-red-500 bg-[#334155] border-slate-500 scale-[1.02]' : 'bg-[#1E293B] border-slate-600'}
+                      ${(!isTimerRunning && !comprobado) ? 'opacity-50 cursor-not-allowed' : !isSelected ? 'hover:bg-[#334155]' : ''}`}
+                  >
+                    <Activity className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-red-400' : 'text-cyan-500'}`} />
+                    <span className={`font-medium text-sm md:text-base leading-snug ${isSelected ? 'text-white' : 'text-slate-200'}`}>{action.text}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -332,18 +353,22 @@ export default function Level4Urgency() {
                 let borderColor = 'border-slate-700';
                 if (comprobado && actionData) {
                   borderColor = (actionData.isCorrect && actionData.order === stepIndex) ? 'border-emerald-500 bg-emerald-950/20' : 'border-red-500 bg-red-950/20';
+                } else if (accionSeleccionada && !actionId) {
+                  borderColor = 'border-red-500/50 bg-red-900/20';
                 }
 
                 return (
                   <div 
                     key={`slot-${stepIndex}`}
+                    onClick={() => handleZoneClick(stepIndex)}
                     onDragOver={handleDragOver}
                     onDrop={(e) => handleDrop(e, stepIndex)}
-                    className={`relative min-h-[72px] flex items-center p-3 rounded-xl border-2 border-dashed transition-colors 
+                    className={`relative min-h-[72px] flex items-center p-3 rounded-xl border-2 transition-colors cursor-pointer
                       ${(!isTimerRunning && !comprobado) ? 'opacity-70 pointer-events-none' : ''}
-                      ${actionId ? 'border-solid border-cyan-700 bg-[#1E293B]' : 'bg-[#0B1120]/50'} ${borderColor}`}
+                      ${actionId ? 'border-solid border-red-700 bg-[#1E293B]' : 'border-dashed bg-[#0B1120]/50'} ${borderColor}`}
                   >
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 bg-[#0F172A] border-2 border-slate-600 rounded-full flex items-center justify-center text-slate-400 font-black text-sm z-10">
+                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 border-2 rounded-full flex items-center justify-center font-black text-sm z-10
+                      ${actionId ? 'bg-red-600 border-red-500 text-white' : 'bg-[#0F172A] border-slate-600 text-slate-400'}`}>
                       {stepIndex}
                     </div>
 
@@ -351,12 +376,12 @@ export default function Level4Urgency() {
                       {actionData ? (
                         <span className="text-white font-medium text-sm">{actionData.text}</span>
                       ) : (
-                        <span className="text-slate-600 text-sm italic">Arrastra el paso {stepIndex} aquí...</span>
+                        <span className="text-slate-600 text-sm italic">{accionSeleccionada ? 'Toca aquí para asignar...' : `Arrastra el paso ${stepIndex} aquí...`}</span>
                       )}
                     </div>
 
                     {actionData && !comprobado && (
-                      <button onClick={() => removeActionFromSlot(stepIndex)} className="absolute right-3 w-6 h-6 bg-slate-700 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs transition-colors">
+                      <button onClick={(e) => { e.stopPropagation(); removeActionFromSlot(stepIndex); }} className="absolute right-3 w-6 h-6 bg-slate-700 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-xs transition-colors">
                         ✕
                       </button>
                     )}
