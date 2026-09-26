@@ -313,8 +313,8 @@ export default function Level4Urgency() {
 
             <div className="flex items-center justify-between mb-1 px-2">
               <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest">Acciones Clínicas</h3>
-              <span className="text-xs text-red-500/70 hidden md:flex items-center gap-1"><Pointer className="w-3 h-3"/> Arrastra o toca</span>
-              <span className="text-xs text-red-500/70 md:hidden flex items-center gap-1"><Pointer className="w-3 h-3"/> 1. Toca 2. Asigna</span>
+              <span className="text-xs text-cyan-500/70 hidden md:flex items-center gap-1"><Pointer className="w-3 h-3"/> Arrastra o toca</span>
+              <span className="text-xs text-cyan-500/70 md:hidden flex items-center gap-1"><Pointer className="w-3 h-3"/> 1. Toca 2. Asigna</span>
             </div>
             
             <div className="flex flex-col gap-3">
@@ -330,10 +330,10 @@ export default function Level4Urgency() {
                       setAccionSeleccionada(prev => prev === action.id ? null : action.id);
                     }}
                     className={`p-4 rounded-xl cursor-pointer border shadow-md transition-all flex items-center gap-3
-                      ${isSelected ? 'ring-2 ring-red-500 bg-[#334155] border-slate-500 scale-[1.02]' : 'bg-[#1E293B] border-slate-600'}
+                      ${isSelected ? 'ring-2 ring-cyan-500 bg-[#334155] border-slate-500 scale-[1.02]' : 'bg-[#1E293B] border-slate-600'}
                       ${(!isTimerRunning && !comprobado) ? 'opacity-50 cursor-not-allowed' : !isSelected ? 'hover:bg-[#334155]' : ''}`}
                   >
-                    <Activity className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-red-400' : 'text-cyan-500'}`} />
+                    <Activity className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-cyan-400' : 'text-cyan-500'}`} />
                     <span className={`font-medium text-sm md:text-base leading-snug ${isSelected ? 'text-white' : 'text-slate-200'}`}>{action.text}</span>
                   </div>
                 );
@@ -350,11 +350,24 @@ export default function Level4Urgency() {
                 const actionId = slots[stepIndex];
                 const actionData = activeCase.actions.find((a: any) => a.id === actionId);
 
-                let borderColor = 'border-slate-700';
+                // LÓGICA DE COLORES CORREGIDA
+                let slotStyle = 'border-dashed border-slate-700 bg-[#0B1120]/50';
+                let circleStyle = 'bg-[#0F172A] border-slate-600 text-slate-400';
+
                 if (comprobado && actionData) {
-                  borderColor = (actionData.isCorrect && actionData.order === stepIndex) ? 'border-emerald-500 bg-emerald-950/20' : 'border-red-500 bg-red-950/20';
+                  if (actionData.isCorrect && actionData.order === stepIndex) {
+                    slotStyle = 'border-solid border-emerald-500 bg-emerald-950/30';
+                    circleStyle = 'bg-emerald-600 border-emerald-500 text-white';
+                  } else {
+                    slotStyle = 'border-solid border-red-500 bg-red-950/30';
+                    circleStyle = 'bg-red-600 border-red-500 text-white';
+                  }
+                } else if (actionId) {
+                  slotStyle = 'border-solid border-cyan-600 bg-[#1E293B]';
+                  circleStyle = 'bg-cyan-600 border-cyan-500 text-white';
                 } else if (accionSeleccionada && !actionId) {
-                  borderColor = 'border-red-500/50 bg-red-900/20';
+                  slotStyle = 'border-dashed border-cyan-500/50 bg-cyan-900/20 animate-pulse';
+                  circleStyle = 'bg-[#0F172A] border-cyan-500 text-cyan-400';
                 }
 
                 return (
@@ -365,10 +378,9 @@ export default function Level4Urgency() {
                     onDrop={(e) => handleDrop(e, stepIndex)}
                     className={`relative min-h-[72px] flex items-center p-3 rounded-xl border-2 transition-colors cursor-pointer
                       ${(!isTimerRunning && !comprobado) ? 'opacity-70 pointer-events-none' : ''}
-                      ${actionId ? 'border-solid border-red-700 bg-[#1E293B]' : 'border-dashed bg-[#0B1120]/50'} ${borderColor}`}
+                      ${slotStyle}`}
                   >
-                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 border-2 rounded-full flex items-center justify-center font-black text-sm z-10
-                      ${actionId ? 'bg-red-600 border-red-500 text-white' : 'bg-[#0F172A] border-slate-600 text-slate-400'}`}>
+                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 border-2 rounded-full flex items-center justify-center font-black text-sm z-10 transition-colors ${circleStyle}`}>
                       {stepIndex}
                     </div>
 
