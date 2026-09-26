@@ -5,9 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Clock, PlayCircle, Activity, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
-// ============================================================================
-// DATOS ANATÓMICOS (6 Estructuras Venosas)
-// ============================================================================
 const ANATOMIA_MANO_DATA = [
   { id: 'vena_cefalica', nombre: 'Vena Cefálica' },
   { id: 'vena_basilica', nombre: 'Vena Dorsal Basílica' },
@@ -26,14 +23,14 @@ const PUNTOS_IMAGEN = [
   { id: 'digital_menique', cx: '66%', cy: '50%', color: '#22d3ee' }
 ];
 
-// Reconfigurado para Responsive Design: Cuadrícula en móvil, Absoluto en PC
-const SLOTS_ETIQUETAS = [
-  { slotId: 0, desktopClass: 'md:left-[2%] lg:left-[4%] md:top-[25%] md:-translate-y-1/2' },
-  { slotId: 1, desktopClass: 'md:left-[2%] lg:left-[4%] md:top-[50%] md:-translate-y-1/2' },
-  { slotId: 2, desktopClass: 'md:left-[2%] lg:left-[4%] md:top-[75%] md:-translate-y-1/2' },
-  { slotId: 3, desktopClass: 'md:right-[2%] lg:right-[4%] md:top-[25%] md:-translate-y-1/2' },
-  { slotId: 4, desktopClass: 'md:right-[2%] lg:right-[4%] md:top-[50%] md:-translate-y-1/2' },
-  { slotId: 5, desktopClass: 'md:right-[2%] lg:right-[4%] md:top-[75%] md:-translate-y-1/2' }
+// Clases explícitas para forzar posiciones absolutas SOLO en pantallas grandes (md en adelante)
+const DESKTOP_POSITIONS = [
+  'md:left-[2%] lg:left-[4%] md:top-[18%] md:-translate-y-1/2',
+  'md:left-[2%] lg:left-[4%] md:top-[50%] md:-translate-y-1/2',
+  'md:left-[2%] lg:left-[4%] md:top-[82%] md:-translate-y-1/2',
+  'md:right-[2%] lg:right-[4%] md:top-[18%] md:-translate-y-1/2',
+  'md:right-[2%] lg:right-[4%] md:top-[50%] md:-translate-y-1/2',
+  'md:right-[2%] lg:right-[4%] md:top-[82%] md:-translate-y-1/2'
 ];
 
 export default function Level2LineConnector() {
@@ -90,9 +87,11 @@ export default function Level2LineConnector() {
     setIsTimerRunning(true);
   };
 
+  // Motor SVG Inteligente (Detecta Móvil vs PC)
   const actualizarLineas = () => {
     if (!containerRef.current) return;
     const containerRect = containerRef.current.getBoundingClientRect();
+    const isMobile = window.innerWidth < 768; // Tailwind 'md' breakpoint
     
     const nuevasLineas = conexiones.map(c => {
       const btnSlot = slotsRefs.current[c.slotId];
@@ -101,10 +100,20 @@ export default function Level2LineConnector() {
 
       const slotRect = btnSlot.getBoundingClientRect();
       const puntoRect = btnPunto.getBoundingClientRect();
-      const isLeftSlot = slotRect.left < containerRect.left + (containerRect.width / 2);
       
-      const x1 = isLeftSlot ? (slotRect.right - containerRect.left) : (slotRect.left - containerRect.left);
-      const y1 = (slotRect.top + (slotRect.height / 2)) - containerRect.top;
+      let x1, y1;
+
+      if (isMobile) {
+        // En celular: La línea sale del centro SUPERIOR del botón
+        x1 = (slotRect.left + slotRect.width / 2) - containerRect.left;
+        y1 = slotRect.top - containerRect.top;
+      } else {
+        // En PC: La línea sale de los LADOS del botón
+        const isLeftSlot = c.slotId < 3;
+        x1 = isLeftSlot ? (slotRect.right - containerRect.left) : (slotRect.left - containerRect.left);
+        y1 = (slotRect.top + (slotRect.height / 2)) - containerRect.top;
+      }
+
       const x2 = (puntoRect.left + (puntoRect.width / 2)) - containerRect.left;
       const y2 = (puntoRect.top + (puntoRect.height / 2)) - containerRect.top;
 
@@ -117,10 +126,9 @@ export default function Level2LineConnector() {
     setLineasCoords(nuevasLineas);
   };
 
-  // Se añaden setTimeout leves en el resize para asegurar que el DOM se acomodó en móvil
   useEffect(() => {
     actualizarLineas();
-    const handleResize = () => setTimeout(actualizarLineas, 100);
+    const handleResize = () => setTimeout(actualizarLineas, 50);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [conexiones, comprobado, etiquetas]);
@@ -145,7 +153,8 @@ export default function Level2LineConnector() {
     setSeleccion(null);
   };
 
-  const borrarConexion = (slotId: number) => {
+  const borrarConexion = (e: React.MouseEvent, slotId: number) => {
+    e.stopPropagation();
     if (comprobado || !isTimerRunning) return;
     setConexiones(prev => prev.filter(c => c.slotId !== slotId));
   };
@@ -195,7 +204,7 @@ export default function Level2LineConnector() {
   if (!isAuthorized) return <div className="min-h-screen bg-[#0B1120]" />;
 
   return (
-    <main className="min-h-screen bg-[#0B1120] p-4 md:p-8 flex flex-col items-center font-sans overflow-hidden select-none">
+    <main className="min-h-screen bg-[#0B1120] p-4 md:p-8 flex flex-col items-center font-sans select-none overflow-x-hidden">
       
       <div className="max-w-6xl w-full mb-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl">
         <div>
@@ -222,19 +231,6 @@ export default function Level2LineConnector() {
           <p className="text-slate-300 text-lg mb-4 leading-relaxed">
             Identifica las 6 estructuras venosas del dorso de la mano. Toca una etiqueta y luego toca el punto anatómico correcto para conectarlas.
           </p>
-          
-          <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
-            <span className="text-slate-400 text-sm block mb-1">Tiempo Asignado:</span>
-            <span className={`text-3xl font-black ${initialTime < 60 ? 'text-amber-500' : 'text-cyan-400'}`}>
-              {initialTime} segundos
-            </span>
-            {initialTime < 60 && (
-              <p className="text-xs text-red-400 mt-2 font-bold flex items-center justify-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Penalización de tiempo activa por reintento.
-              </p>
-            )}
-          </div>
-
           <button onClick={startGame} className="w-full px-12 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xl rounded-xl shadow-[0_0_30px_rgba(8,145,178,0.4)] transition-transform hover:scale-105 flex items-center justify-center gap-3">
             <PlayCircle className="w-6 h-6" /> INICIAR MAPEO
           </button>
@@ -242,18 +238,18 @@ export default function Level2LineConnector() {
       ) : (
         <div className="w-full max-w-6xl flex flex-col xl:flex-row gap-8">
           
-          {/* CONTENEDOR PRINCIPAL: Flex en móvil, height fijo en Desktop */}
-          <div ref={containerRef} className="relative w-full xl:w-[75%] flex flex-col md:block min-h-[600px] md:h-[600px] bg-[#0F172A] rounded-2xl border border-slate-800 shadow-[0_0_30px_rgba(0,0,0,0.5)] flex-shrink-0 p-4 md:p-0">
+          {/* CONTENEDOR PRINCIPAL: Ahora usa flow natural en móvil y heights fijos en PC */}
+          <div ref={containerRef} className="relative w-full xl:w-[75%] flex flex-col md:block min-h-[650px] md:h-[600px] bg-[#0F172A] rounded-2xl border border-slate-800 shadow-2xl p-4 md:p-0">
             
-            {/* SVG OVERLAY (Cubre todo el recuadro para trazar las líneas libres) */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10" style={{ minHeight: '100%' }}>
+            {/* SVG OVERLAY */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-10">
               {lineasCoords.map(linea => (
                 <line key={linea.id} x1={linea.x1} y1={linea.y1} x2={linea.x2} y2={linea.y2} stroke={linea.color} strokeWidth="2.5" strokeLinecap="round" className="animate-pulse drop-shadow-md" />
               ))}
             </svg>
 
-            {/* IMAGEN DE LA MANO (Arriba en móvil, Centrada en PC) */}
-            <div className="relative md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full max-w-[320px] h-[380px] md:h-[450px] mx-auto z-10 mt-2 md:mt-0">
+            {/* IMAGEN DE LA MANO */}
+            <div className="relative md:absolute md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 w-full max-w-[280px] md:max-w-[320px] h-[350px] md:h-[450px] mx-auto z-10 mb-6 md:mb-0">
               <img src="/images/Mano con venas.png" alt="Anatomía Mano Venas" className={`w-full h-full object-cover opacity-90 drop-shadow-2xl pointer-events-none transition-opacity ${!isTimerRunning && !comprobado ? 'opacity-50' : 'opacity-100'}`} />
               
               {PUNTOS_IMAGEN.map(punto => {
@@ -265,7 +261,7 @@ export default function Level2LineConnector() {
                     key={`punto-${punto.id}`} 
                     ref={el => { puntosRefs.current[punto.id] = el; }} 
                     onClick={() => manejarClicPunto(punto.id)}
-                    className={`absolute w-6 h-6 rounded-full border-[3px] z-30 transition-transform cursor-pointer
+                    className={`absolute w-6 h-6 md:w-7 md:h-7 rounded-full border-[3px] z-30 transition-transform cursor-pointer
                       ${(!isTimerRunning && !comprobado) ? 'cursor-not-allowed opacity-50' : 'hover:scale-125'}
                       ${esSeleccionado ? 'scale-150 ring-4 ring-white/50' : ''} 
                       ${estaConectado ? 'bg-[#0F172A]' : 'bg-white'}
@@ -276,18 +272,18 @@ export default function Level2LineConnector() {
               })}
             </div>
 
-            {/* ZONA DE ETIQUETAS: Cuadrícula en móvil, Absoluto a los lados en PC */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full mt-6 z-20 md:mt-0 md:block">
-              {SLOTS_ETIQUETAS.map(slot => {
-                const idAnatomia = etiquetas[slot.slotId];
+            {/* ZONA DE ETIQUETAS: Grid estricto en móvil, Absoluto en PC */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 w-full z-20 md:block relative mt-auto">
+              {[0, 1, 2, 3, 4, 5].map(index => {
+                const idAnatomia = etiquetas[index];
                 const dataAnatomia = ANATOMIA_MANO_DATA.find(d => d.id === idAnatomia);
-                const conexion = conexiones.find(c => c.slotId === slot.slotId);
-                const esSeleccionado = seleccion?.tipo === 'slot' && seleccion.id === slot.slotId;
+                const conexion = conexiones.find(c => c.slotId === index);
+                const esSeleccionado = seleccion?.tipo === 'slot' && seleccion.id === index;
                 
                 let bgClass = 'bg-[#1E293B]'; let borderClass = 'border-slate-600'; let textClass = 'text-slate-300';
                 
                 if (comprobado && conexion) {
-                  const esCorrecto = etiquetas[slot.slotId] === conexion.puntoId;
+                  const esCorrecto = etiquetas[index] === conexion.puntoId;
                   bgClass = esCorrecto ? 'bg-emerald-900' : 'bg-red-900'; borderClass = esCorrecto ? 'border-emerald-500' : 'border-red-500'; textClass = 'text-white font-bold';
                 } else if (esSeleccionado) { 
                   borderClass = 'border-cyan-400'; bgClass = 'bg-[#334155]'; textClass = 'text-cyan-300';
@@ -296,16 +292,16 @@ export default function Level2LineConnector() {
                 }
 
                 return (
-                  <div key={`slot-${slot.slotId}`} className={`relative md:absolute flex items-center justify-center w-full md:w-auto ${slot.desktopClass} ${(!isTimerRunning && !comprobado) ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <div key={`slot-${index}`} className={`relative w-full flex justify-center z-20 md:absolute md:w-auto ${DESKTOP_POSITIONS[index]} ${(!isTimerRunning && !comprobado) ? 'opacity-50 pointer-events-none' : ''}`}>
                     <button 
-                      ref={el => { slotsRefs.current[slot.slotId] = el; }} 
-                      onClick={() => manejarClicSlot(slot.slotId)} 
-                      className={`w-full md:w-[200px] lg:w-[240px] xl:w-[260px] h-[48px] md:h-[52px] rounded-lg border flex items-center justify-center px-1 sm:px-3 transition-all shadow-lg text-[11px] sm:text-xs md:text-sm shadow-black/50 hover:bg-[#334155] ${bgClass} ${borderClass} ${textClass}`}
+                      ref={el => { slotsRefs.current[index] = el; }} 
+                      onClick={() => manejarClicSlot(index)} 
+                      className={`w-full h-[50px] md:w-[220px] lg:w-[240px] xl:w-[260px] md:h-[52px] rounded-lg border flex items-center justify-center px-1 sm:px-3 transition-all shadow-lg text-[10px] sm:text-xs md:text-sm shadow-black/50 hover:bg-[#334155] ${bgClass} ${borderClass} ${textClass}`}
                     >
                       <span className="text-center leading-tight font-medium line-clamp-2">{dataAnatomia?.nombre || '...'}</span>
                     </button>
                     {conexion && !comprobado && (
-                      <button onClick={(e) => { e.stopPropagation(); borrarConexion(slot.slotId); }} className={`absolute -top-1.5 -right-1.5 md:-top-2 w-5 h-5 md:w-6 md:h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] md:text-xs shadow-lg hover:scale-110 z-30 md:${slot.desktopClass.includes('right') ? '-left-2' : '-right-2'}`}>✕</button>
+                      <button onClick={(e) => borrarConexion(e, index)} className={`absolute -top-2 -right-2 md:w-6 md:h-6 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] md:text-xs shadow-lg hover:scale-110 z-30 md:${DESKTOP_POSITIONS[index].includes('right') ? '-left-2' : '-right-2'}`}>✕</button>
                     )}
                   </div>
                 )
@@ -316,38 +312,21 @@ export default function Level2LineConnector() {
           {/* PANEL DE CONTROL DERECHO */}
           <div className="w-full xl:w-[25%] flex flex-col gap-6">
             <div className="bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl h-full flex flex-col justify-center">
-              
               <div className="text-center mb-8">
                 <h3 className="text-slate-400 text-sm uppercase tracking-widest font-bold mb-2">Progreso</h3>
                 <div className="text-4xl font-black text-cyan-400">{conexiones.length} <span className="text-2xl text-slate-600">/ 6</span></div>
               </div>
-
               {!comprobado ? (
-                <button 
-                  onClick={comprobarRespuestas} 
-                  disabled={conexiones.length < 6 || !isTimerRunning} 
-                  className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg ${conexiones.length === 6 ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(8,145,178,0.4)]' : 'bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700'}`}
-                >
-                  Comprobar Respuestas
-                </button>
+                <button onClick={comprobarRespuestas} disabled={conexiones.length < 6 || !isTimerRunning} className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg ${conexiones.length === 6 ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(8,145,178,0.4)]' : 'bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700'}`}>Comprobar</button>
               ) : (
                 <div className={`p-5 rounded-xl border flex flex-col items-center text-center ${resultado?.exitoso ? 'bg-emerald-900/20 border-emerald-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
-                  
                   <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-4 ${resultado?.exitoso ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
                     {resultado?.exitoso ? <CheckCircle className="w-8 h-8" /> : <XCircle className="w-8 h-8" />}
                   </div>
-
-                  <h2 className={`text-xl font-bold mb-2 ${resultado?.exitoso ? 'text-emerald-400' : 'text-red-400'}`}>
-                    {resultado?.exitoso ? '¡Mapeo Perfecto!' : resultado?.mensaje || `${resultado?.aciertos} Aciertos de 6`}
-                  </h2>
-                  
-                  {!resultado?.exitoso && !resultado?.mensaje && (
-                    <p className="text-slate-400 text-xs mb-6 px-2">Las líneas rojas son incorrectas.</p>
-                  )}
-
+                  <h2 className={`text-xl font-bold mb-2 ${resultado?.exitoso ? 'text-emerald-400' : 'text-red-400'}`}>{resultado?.exitoso ? '¡Mapeo Perfecto!' : resultado?.mensaje || `${resultado?.aciertos} Aciertos de 6`}</h2>
                   <div className="w-full flex flex-col gap-3 mt-2">
                     {!resultado?.exitoso && <button onClick={reintentar} className="w-full py-3 bg-[#1E293B] hover:bg-[#334155] text-white rounded-lg font-semibold border border-slate-700">Reintentar (-5s)</button>}
-                    {resultado?.exitoso && <Link href="/levels/level-3" className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-semibold shadow-lg transition-transform hover:scale-105">Siguiente Nivel ➔</Link>}
+                    {resultado?.exitoso && <Link href="/levels/level-3" className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-semibold shadow-lg">Siguiente Nivel ➔</Link>}
                   </div>
                 </div>
               )}
