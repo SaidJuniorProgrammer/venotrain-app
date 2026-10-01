@@ -228,6 +228,19 @@ export default function Level2LineConnector() {
           <p className="text-slate-300 text-lg mb-4 leading-relaxed">
             Identifica las 6 estructuras venosas del dorso de la mano. Toca una etiqueta y luego toca el punto anatómico correcto para conectarlas.
           </p>
+
+          <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
+            <span className="text-slate-400 text-sm block mb-1">Tiempo Asignado:</span>
+            <span className={`text-3xl font-black ${initialTime < 30 ? 'text-amber-500' : 'text-cyan-400'}`}>
+              {initialTime} segundos
+            </span>
+            {initialTime < 30 && (
+              <p className="text-xs text-red-400 mt-2 font-bold flex items-center justify-center gap-1">
+                <AlertCircle className="w-3 h-3" /> Penalización de tiempo activa por reintento.
+              </p>
+            )}
+          </div>
+
           <button onClick={startGame} className="w-full px-12 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xl rounded-xl shadow-[0_0_30px_rgba(8,145,178,0.4)] transition-transform hover:scale-105 flex items-center justify-center gap-3">
             <PlayCircle className="w-6 h-6" /> INICIAR MAPEO
           </button>
@@ -269,7 +282,7 @@ export default function Level2LineConnector() {
               })}
             </div>
 
-            {/* SOLUCIÓN AL BUG: md:static para que los absolute hijos referencien a containerRef */}
+            {/* ZONA DE ETIQUETAS */}
             <div className="w-full grid grid-cols-2 gap-2 sm:gap-3 mt-auto md:mt-0 md:block md:static z-20">
               {[0, 1, 2, 3, 4, 5].map(index => {
                 const idAnatomia = etiquetas[index];
