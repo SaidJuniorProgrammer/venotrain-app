@@ -16,7 +16,9 @@ const ANATOMIA_MANO_DATA = [
 const PUNTOS_IMAGEN = [
   { id: 'vena_cefalica', cx: '45%', cy: '13%', color: '#22d3ee' },
   { id: 'vena_basilica', cx: '15%', cy: '24%', color: '#22d3ee' }, 
-  { id: 'vena_metacarpo', cx: '20%', cy: '49%', color: '#22d3ee' },
+
+  { id: 'vena_metacarpo', cx: '45%', cy: '35%', color: '#22d3ee' },
+
   { id: 'digital_indice', cx: '36%', cy: '66%', color: '#22d3ee' },
   { id: 'digital_menique', cx: '66%', cy: '50%', color: '#22d3ee' }
 ];
