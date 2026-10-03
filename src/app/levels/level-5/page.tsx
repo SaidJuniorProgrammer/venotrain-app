@@ -210,39 +210,43 @@ export default function Level5Critical() {
   const [bloodPressure, setBloodPressure] = useState({ sys: 80, dia: 50 });
   const [heartRate, setHeartRate] = useState(128);
   
-  // Gamificación y Tiempo
-  const [initialTime, setInitialTime] = useState(60); // Tiempo base
-  const [timeToCrash, setTimeToCrash] = useState(60); // Contador regresivo
+  // Gamificación y Tiempo (90 segundos iniciales)
+  const [initialTime, setInitialTime] = useState(90);
+  const [timeToCrash, setTimeToCrash] = useState(90);
   
   const [fatalError, setFatalError] = useState('');
   const [metrics, setMetrics] = useState({ precision: 100, biosecurity: 100, resolution: 100 });
 
-  // Simulador de Signos Vitales (Degradación constante)
+  // Simulador de Signos Vitales (Corregido para evitar que el fallo se quede guardado al reiniciar)
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (stage > 0 && stage <= 3 && timeToCrash > 0) {
-      timer = setInterval(() => {
-        setTimeToCrash(prev => prev - 1);
-        
-        // Empeorar signos vitales
-        if (timeToCrash % 3 === 0) {
-          setBloodPressure(prev => ({ sys: Math.max(40, prev.sys - 1), dia: Math.max(20, prev.dia - 1) }));
-          setHeartRate(prev => Math.min(180, prev + 1));
-        }
-      }, 1000);
-    } else if (timeToCrash === 0 && stage > 0 && stage <= 3) {
+    if (stage < 1 || stage > 3) return;
+
+    if (timeToCrash <= 0) {
       triggerGameOver('Paro Cardiorrespiratorio irreversible por shock hipovolémico prolongado.');
+      return;
     }
+
+    const timer = setInterval(() => {
+      setTimeToCrash(prev => prev - 1);
+      
+      // Empeorar signos vitales
+      if (timeToCrash % 3 === 0) {
+        setBloodPressure(prev => ({ sys: Math.max(40, prev.sys - 1), dia: Math.max(20, prev.dia - 1) }));
+        setHeartRate(prev => Math.min(180, prev + 1));
+      }
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [stage, timeToCrash]);
 
   const startGame = () => {
     const randomPackage = STAGE_PACKAGES[Math.floor(Math.random() * STAGE_PACKAGES.length)];
     setActiveStages(randomPackage);
-    setStage(1);
+    setFatalError('');
     setTimeToCrash(initialTime);
     setBloodPressure({ sys: 80, dia: 50 });
     setHeartRate(128);
+    setStage(1);
   };
 
   const triggerGameOver = (reason: string) => {
@@ -289,9 +293,13 @@ export default function Level5Critical() {
   };
 
   const restartSimulation = () => {
+    const nuevoTiempo = Math.max(15, initialTime - 15);
     setStage(0);
     setFatalError('');
-    setInitialTime(prev => Math.max(15, prev - 15)); // Penalización de tiempo: mínimo 15s
+    setBloodPressure({ sys: 80, dia: 50 });
+    setHeartRate(128);
+    setInitialTime(nuevoTiempo);
+    setTimeToCrash(nuevoTiempo);
   };
 
   const isCritical = bloodPressure.sys <= 65;
@@ -357,12 +365,12 @@ export default function Level5Critical() {
 
           <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
             <span className="text-slate-400 text-sm block mb-1">Tiempo Límite Asignado:</span>
-            <span className={`text-3xl font-black ${initialTime < 45 ? 'text-red-600 animate-pulse' : 'text-red-400'}`}>
+            <span className={`text-3xl font-black ${initialTime < 90 ? 'text-red-600 animate-pulse' : 'text-red-400'}`}>
               {initialTime} segundos
             </span>
-            {initialTime < 45 && (
+            {initialTime < 90 && (
               <p className="text-xs text-red-400 mt-2 font-bold flex items-center justify-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Tiempo penalizado por fallos previos.
+                <AlertCircle className="w-3 h-3" /> Tiempo penalizado por fallos previos (-15s).
               </p>
             )}
           </div>
