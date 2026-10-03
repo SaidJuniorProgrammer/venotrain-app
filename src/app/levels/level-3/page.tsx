@@ -21,7 +21,7 @@ const CATHETERS = [
 const CLINICAL_CASES = [
   {
     id: 'shock',
-    title: 'Politraumatismo / Shock',
+    title: 'Politraumatismo / Shock / Quirófano',
     description: 'Transfusión masiva de hemoderivados y flujos rápidos (>100 ml/min).',
     correctCatheter: '18G',
   },
@@ -80,21 +80,30 @@ export default function Level3DragAndDrop() {
     setShuffledCatheters([...CATHETERS].sort(() => Math.random() - 0.5));
   }, []);
 
-  // Efecto del Temporizador
+  // Efecto del Temporizador corregido para evitar que el error se quede guardado al reintentar
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isTimerRunning && timeLeft > 0 && !comprobado) {
-      timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (timeLeft === 0 && !comprobado) {
+    if (!isTimerRunning || comprobado) return;
+
+    if (timeLeft <= 0) {
       setIsTimerRunning(false);
       setComprobado(true);
       setCatheterSeleccionado(null);
       setResultado({ exitoso: false, aciertos: Object.keys(matches).length, mensaje: '¡Tiempo agotado! Retrasaste el tratamiento.' });
+      return;
     }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [isTimerRunning, timeLeft, comprobado, matches]);
 
   const startGame = () => {
+    setMatches({});
+    setComprobado(false);
+    setResultado(null);
+    setCatheterSeleccionado(null);
     setTimeLeft(initialTime);
     setGameStarted(true);
     setIsTimerRunning(true);
@@ -179,11 +188,15 @@ export default function Level3DragAndDrop() {
   };
 
   const reintentar = () => {
+    const nuevoTiempo = Math.max(8, initialTime - 8);
+    setIsTimerRunning(false);
     setMatches({});
     setComprobado(false);
     setResultado(null);
     setCatheterSeleccionado(null);
-    setInitialTime(prev => Math.max(8, prev - 8)); 
+    setShuffledCatheters([...CATHETERS].sort(() => Math.random() - 0.5));
+    setInitialTime(nuevoTiempo);
+    setTimeLeft(nuevoTiempo);
     setGameStarted(false);
   };
 
