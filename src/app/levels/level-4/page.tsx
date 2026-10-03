@@ -72,10 +72,10 @@ const EMERGENCY_CASES = [
     description: 'Encuentras una vía venosa de grueso calibre desconectada del equipo de suero. El paciente presenta tos súbita, disnea (falta de aire) y cianosis.',
     actions: [
       { id: 'g_1', text: 'Pinzar o tapar el catéter inmediatamente para evitar más entrada de aire.', isCorrect: true, order: 1 },
-      { id: 'g_2', text: 'Colocar al paciente en decúbito lateral izquierdo y Trendelenburg (maniobra de Durant).', isCorrect: true, order: 2 },
-      { id: 'g_3', text: 'Administrar oxígeno suplementario al 100%.', isCorrect: true, order: 3 },
+      { id: 'g_2', text: 'Administrar oxígeno suplementario al 100%.', isCorrect: true, order: 2 },
+      { id: 'g_3', text: 'Posición Semifowler para que pueda respirar mejor.', isCorrect: true, order: 3 },
       { id: 'g_4', text: 'Activar código de emergencia y avisar al médico de urgencia.', isCorrect: true, order: 4 },
-      { id: 'g_t1', text: 'Sentar al paciente a 90 grados para que pueda respirar mejor.', isCorrect: false, order: 99 },
+      { id: 'g_t1', text: 'Colocar al paciente totalmente plano boca abajo (decúbito prono).', isCorrect: false, order: 99 },
       { id: 'g_t2', text: 'Reconectar el suero rápidamente y aumentar el flujo para purgar el aire.', isCorrect: false, order: 99 }
     ]
   }
@@ -106,23 +106,28 @@ export default function Level4Urgency() {
   // ESTADO PARA SISTEMA TÁCTIL
   const [accionSeleccionada, setAccionSeleccionada] = useState<string | null>(null);
 
-  // Gamificación y Tiempo
+  // Gamificación y Tiempo (90 segundos iniciales)
   const [gameStarted, setGameStarted] = useState(false);
-  const [initialTime, setInitialTime] = useState(60);
-  const [timeLeft, setTimeLeft] = useState(60);
+  const [initialTime, setInitialTime] = useState(90);
+  const [timeLeft, setTimeLeft] = useState(90);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
-  // Efecto del Temporizador
+  // Efecto del Temporizador corregido para no re-dispararse al reiniciar
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isTimerRunning && timeLeft > 0 && !comprobado) {
-      timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (timeLeft === 0 && !comprobado) {
+    if (!isTimerRunning || comprobado) return;
+
+    if (timeLeft <= 0) {
       setIsTimerRunning(false);
       setComprobado(true);
       setAccionSeleccionada(null);
       setResultado({ exitoso: false, mensaje: '¡Tiempo agotado! La demora en actuar puso al paciente en riesgo grave.' });
+      return;
     }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [isTimerRunning, timeLeft, comprobado]);
 
@@ -130,6 +135,10 @@ export default function Level4Urgency() {
     const randomCase = EMERGENCY_CASES[Math.floor(Math.random() * EMERGENCY_CASES.length)];
     setActiveCase(randomCase);
     setAvailableActions([...randomCase.actions].sort(() => Math.random() - 0.5));
+    setSlots({});
+    setComprobado(false);
+    setResultado(null);
+    setAccionSeleccionada(null);
     setTimeLeft(initialTime); 
     setGameStarted(true);
     setIsTimerRunning(true);
@@ -234,11 +243,14 @@ export default function Level4Urgency() {
   };
 
   const reintentar = () => {
+    const nuevoTiempo = resultado?.exitoso ? initialTime : Math.max(10, initialTime - 10);
+    setIsTimerRunning(false);
     setSlots({});
     setComprobado(false);
     setResultado(null);
     setAccionSeleccionada(null);
-    setInitialTime(prev => Math.max(10, prev - 10)); 
+    setInitialTime(nuevoTiempo);
+    setTimeLeft(nuevoTiempo);
     setGameStarted(false); 
   };
 
@@ -286,12 +298,12 @@ export default function Level4Urgency() {
 
           <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
             <span className="text-slate-400 text-sm block mb-1">Tiempo Límite Asignado:</span>
-            <span className={`text-3xl font-black ${initialTime < 45 ? 'text-red-600 animate-pulse' : 'text-red-400'}`}>
+            <span className={`text-3xl font-black ${initialTime < 90 ? 'text-red-600 animate-pulse' : 'text-red-400'}`}>
               {initialTime} segundos
             </span>
-            {initialTime < 45 && (
+            {initialTime < 90 && (
               <p className="text-xs text-red-400 mt-2 font-bold flex items-center justify-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Tiempo penalizado por fallos previos.
+                <AlertCircle className="w-3 h-3" /> Tiempo penalizado por fallos previos (-10s).
               </p>
             )}
           </div>
