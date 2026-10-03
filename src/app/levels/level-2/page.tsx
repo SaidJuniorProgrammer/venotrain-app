@@ -8,7 +8,6 @@ import { Clock, PlayCircle, Activity, CheckCircle, XCircle, AlertCircle } from '
 const ANATOMIA_MANO_DATA = [
   { id: 'vena_cefalica', nombre: 'Vena Cefálica' },
   { id: 'vena_basilica', nombre: 'Vena Dorsal Basílica' },
-  { id: 'arco_dorsal', nombre: 'Arco Venoso Dorsal' },
   { id: 'vena_metacarpo', nombre: 'Venas Dorsales del Metacarpo' },
   { id: 'digital_indice', nombre: 'Vena Dorsal Digital (Anular)' },
   { id: 'digital_menique', nombre: 'Vena Dorsal Digital (Índice)' }
@@ -17,20 +16,18 @@ const ANATOMIA_MANO_DATA = [
 const PUNTOS_IMAGEN = [
   { id: 'vena_cefalica', cx: '45%', cy: '13%', color: '#22d3ee' },
   { id: 'vena_basilica', cx: '15%', cy: '24%', color: '#22d3ee' }, 
-  { id: 'arco_dorsal', cx: '70%', cy: '35%', color: '#22d3ee' },
   { id: 'vena_metacarpo', cx: '20%', cy: '49%', color: '#22d3ee' },
   { id: 'digital_indice', cx: '36%', cy: '66%', color: '#22d3ee' },
   { id: 'digital_menique', cx: '66%', cy: '50%', color: '#22d3ee' }
 ];
 
-// Ajuste para Desktop: Se distribuyen al 15%, 50% y 85% de la altura total
+// Ajuste para Desktop (5 etiquetas): 3 a la izquierda (15%, 50%, 85%) y 2 a la derecha (32%, 68%)
 const DESKTOP_POSITIONS = [
   'md:left-[2%] lg:left-[4%] md:top-[15%] md:-translate-y-1/2',
   'md:left-[2%] lg:left-[4%] md:top-[50%] md:-translate-y-1/2',
   'md:left-[2%] lg:left-[4%] md:top-[85%] md:-translate-y-1/2',
-  'md:right-[2%] lg:right-[4%] md:top-[15%] md:-translate-y-1/2',
-  'md:right-[2%] lg:right-[4%] md:top-[50%] md:-translate-y-1/2',
-  'md:right-[2%] lg:right-[4%] md:top-[85%] md:-translate-y-1/2'
+  'md:right-[2%] lg:right-[4%] md:top-[32%] md:-translate-y-1/2',
+  'md:right-[2%] lg:right-[4%] md:top-[68%] md:-translate-y-1/2'
 ];
 
 export default function Level2LineConnector() {
@@ -69,19 +66,31 @@ export default function Level2LineConnector() {
     setEtiquetas(nuevasEtiquetas);
   }, []);
 
+  // Efecto del Temporizador corregido para evitar que el error se quede guardado al reintentar
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isTimerRunning && timeLeft > 0 && !comprobado) {
-      timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (timeLeft === 0 && !comprobado) {
+    if (!isTimerRunning || comprobado) return;
+
+    if (timeLeft <= 0) {
       setIsTimerRunning(false);
       setComprobado(true);
+      setSeleccion(null);
       setResultado({ exitoso: false, aciertos: conexiones.length, mensaje: '¡Tiempo agotado!' });
+      return;
     }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [isTimerRunning, timeLeft, comprobado, conexiones.length]);
 
   const startGame = () => {
+    setConexiones([]);
+    setLineasCoords([]);
+    setSeleccion(null);
+    setComprobado(false);
+    setResultado(null);
     setTimeLeft(initialTime);
     setGameStarted(true);
     setIsTimerRunning(true);
@@ -158,9 +167,10 @@ export default function Level2LineConnector() {
 
   const comprobarRespuestas = async () => {
     setIsTimerRunning(false);
+    setSeleccion(null);
     let aciertos = 0;
     conexiones.forEach(c => { if (etiquetas[c.slotId] === c.puntoId) aciertos++; });
-    const exitoso = aciertos === 6;
+    const exitoso = aciertos === 5;
     setResultado({ exitoso, aciertos });
     setComprobado(true);
 
@@ -171,7 +181,7 @@ export default function Level2LineConnector() {
       }
     }
     
-    const puntos = Math.round((aciertos / 6) * 100);
+    const puntos = Math.round((aciertos / 5) * 100);
     try {
       await fetch('/api/scores', {
         method: 'POST',
@@ -182,6 +192,8 @@ export default function Level2LineConnector() {
   };
 
   const reintentar = () => {
+    const nuevoTiempo = Math.max(5, initialTime - 5);
+    setIsTimerRunning(false);
     setConexiones([]);
     setLineasCoords([]);
     setSeleccion(null);
@@ -191,7 +203,8 @@ export default function Level2LineConnector() {
     const nuevasEtiquetas: { [key: number]: string } = {};
     barajadas.forEach((item, index) => { nuevasEtiquetas[index] = item.id; });
     setEtiquetas(nuevasEtiquetas);
-    setInitialTime(prev => Math.max(5, prev - 5)); 
+    setInitialTime(nuevoTiempo);
+    setTimeLeft(nuevoTiempo);
     setGameStarted(false);
   };
 
@@ -226,7 +239,7 @@ export default function Level2LineConnector() {
           <Activity className="w-20 h-20 text-cyan-500 mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-white mb-4">Reconocimiento Dorsal</h2>
           <p className="text-slate-300 text-lg mb-4 leading-relaxed">
-            Identifica las 6 estructuras venosas del dorso de la mano. Toca una etiqueta y luego toca el punto anatómico correcto para conectarlas.
+            Identifica las 5 estructuras venosas del dorso de la mano. Toca una etiqueta y luego toca el punto anatómico correcto para conectarlas.
           </p>
 
           <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
@@ -284,7 +297,7 @@ export default function Level2LineConnector() {
 
             {/* ZONA DE ETIQUETAS */}
             <div className="w-full grid grid-cols-2 gap-2 sm:gap-3 mt-auto md:mt-0 md:block md:static z-20">
-              {[0, 1, 2, 3, 4, 5].map(index => {
+              {[0, 1, 2, 3, 4].map(index => {
                 const idAnatomia = etiquetas[index];
                 const dataAnatomia = ANATOMIA_MANO_DATA.find(d => d.id === idAnatomia);
                 const conexion = conexiones.find(c => c.slotId === index);
@@ -302,7 +315,7 @@ export default function Level2LineConnector() {
                 }
 
                 return (
-                  <div key={`slot-${index}`} className={`relative w-full flex justify-center z-20 md:absolute md:w-auto ${DESKTOP_POSITIONS[index]} ${(!isTimerRunning && !comprobado) ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <div key={`slot-${index}`} className={`relative w-full flex justify-center z-20 md:absolute md:w-auto ${index === 4 ? 'col-span-2 md:col-span-1' : ''} ${DESKTOP_POSITIONS[index]} ${(!isTimerRunning && !comprobado) ? 'opacity-50 pointer-events-none' : ''}`}>
                     <button 
                       ref={el => { slotsRefs.current[index] = el; }} 
                       onClick={() => manejarClicSlot(index)} 
@@ -324,16 +337,16 @@ export default function Level2LineConnector() {
             <div className="bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl h-full flex flex-col justify-center">
               <div className="text-center mb-8">
                 <h3 className="text-slate-400 text-sm uppercase tracking-widest font-bold mb-2">Progreso</h3>
-                <div className="text-4xl font-black text-cyan-400">{conexiones.length} <span className="text-2xl text-slate-600">/ 6</span></div>
+                <div className="text-4xl font-black text-cyan-400">{conexiones.length} <span className="text-2xl text-slate-600">/ 5</span></div>
               </div>
               {!comprobado ? (
-                <button onClick={comprobarRespuestas} disabled={conexiones.length < 6 || !isTimerRunning} className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg ${conexiones.length === 6 ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(8,145,178,0.4)]' : 'bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700'}`}>Comprobar</button>
+                <button onClick={comprobarRespuestas} disabled={conexiones.length < 5 || !isTimerRunning} className={`w-full py-4 rounded-xl font-bold text-base transition-all shadow-lg ${conexiones.length === 5 ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-[0_0_20px_rgba(8,145,178,0.4)]' : 'bg-[#1E293B] text-slate-500 cursor-not-allowed border border-slate-700'}`}>Comprobar</button>
               ) : (
                 <div className={`p-5 rounded-xl border flex flex-col items-center text-center ${resultado?.exitoso ? 'bg-emerald-900/20 border-emerald-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
                   <div className={`w-16 h-16 rounded-full flex items-center justify-center text-3xl mb-4 ${resultado?.exitoso ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
                     {resultado?.exitoso ? <CheckCircle className="w-8 h-8" /> : <XCircle className="w-8 h-8" />}
                   </div>
-                  <h2 className={`text-xl font-bold mb-2 ${resultado?.exitoso ? 'text-emerald-400' : 'text-red-400'}`}>{resultado?.exitoso ? '¡Mapeo Perfecto!' : resultado?.mensaje || `${resultado?.aciertos} Aciertos de 6`}</h2>
+                  <h2 className={`text-xl font-bold mb-2 ${resultado?.exitoso ? 'text-emerald-400' : 'text-red-400'}`}>{resultado?.exitoso ? '¡Mapeo Perfecto!' : resultado?.mensaje || `${resultado?.aciertos} Aciertos de 5`}</h2>
                   <div className="w-full flex flex-col gap-3 mt-2">
                     {!resultado?.exitoso && <button onClick={reintentar} className="w-full py-3 bg-[#1E293B] hover:bg-[#334155] text-white rounded-lg font-semibold border border-slate-700">Reintentar (-5s)</button>}
                     {resultado?.exitoso && <Link href="/levels/level-3" className="w-full py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-semibold shadow-lg">Siguiente Nivel ➔</Link>}
