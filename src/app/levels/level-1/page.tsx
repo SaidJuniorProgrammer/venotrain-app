@@ -9,7 +9,7 @@ const VENAS_DATA = {
   cefalica: {
     id: 'cefalica',
     nombre: 'Vena Cefálica',
-    descripcion: 'Corre por el lado lateral del antebrazo. Se origina en el dorso de la mano y asciende por el lado del pulgar.'
+    descripcion: 'Corre por el lado lateral (externo) del antebrazo. Se origina en el dorso de la mano y asciende por el lado del pulgar.'
   },
   mediana: {
     id: 'mediana',
@@ -19,7 +19,7 @@ const VENAS_DATA = {
   basilica: {
     id: 'basilica',
     nombre: 'Vena Basílica',
-    descripcion: 'Corre por el lado medial del antebrazo. Se origina en el dorso de la mano, del lado del meñique.'
+    descripcion: 'Corre por el lado medial (interno) del antebrazo. Se origina en el dorso de la mano, del lado del meñique.'
   }
 };
 
@@ -30,7 +30,6 @@ export default function Level1DragAndDrop() {
 
   // EFECTO PROTECTOR Y DETECCIÓN TÁCTIL
   useEffect(() => {
-    // Detectar si es una pantalla táctil para desactivar el Drag & Drop nativo que bloquea los clics
     setIsTouchDevice('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
     const unlocked = parseInt(localStorage.getItem('venotrain_unlockedLevel') || '1');
@@ -50,25 +49,41 @@ export default function Level1DragAndDrop() {
   
   const [venaSeleccionada, setVenaSeleccionada] = useState<string | null>(null);
 
+  // Tiempo base actualizado a 30 segundos
   const [gameStarted, setGameStarted] = useState(false);
-  const [initialTime, setInitialTime] = useState(20);
-  const [timeLeft, setTimeLeft] = useState(20);
+  const [initialTime, setInitialTime] = useState(30);
+  const [timeLeft, setTimeLeft] = useState(30);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
 
+  // Efecto del Temporizador (Corregido para no re-dispararse al reiniciar)
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isTimerRunning && timeLeft > 0 && !comprobado) {
-      timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    } else if (timeLeft === 0 && !comprobado) {
+    if (!isTimerRunning || comprobado) return;
+
+    if (timeLeft <= 0) {
       setIsTimerRunning(false);
       setComprobado(true);
       setVenaSeleccionada(null);
-      setResultado({ exitoso: false, aciertos: 0, mensaje: '¡Tiempo agotado! El retraso compromete la hidratación del paciente.' });
+      setResultado({
+        exitoso: false,
+        aciertos: 0,
+        mensaje: '¡Tiempo agotado! El retraso compromete la hidratación del paciente.'
+      });
+      return;
     }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
     return () => clearInterval(timer);
   }, [isTimerRunning, timeLeft, comprobado]);
 
   const startGame = () => {
+    setZonas({ cefalica: null, mediana: null, basilica: null });
+    setBanco(['cefalica', 'mediana', 'basilica']);
+    setComprobado(false);
+    setResultado(null);
+    setVenaSeleccionada(null);
     setTimeLeft(initialTime);
     setGameStarted(true);
     setIsTimerRunning(true);
@@ -93,7 +108,9 @@ export default function Level1DragAndDrop() {
 
     const idVena = e.dataTransfer.getData('idVena');
     const origen = e.dataTransfer.getData('origen');
-    ejecutarMovimiento(idVena, origen, zonaDestino);
+    if (idVena && origen) {
+      ejecutarMovimiento(idVena, origen, zonaDestino);
+    }
   };
 
   const handleZoneClick = (zonaDestino: string) => {
@@ -159,30 +176,41 @@ export default function Level1DragAndDrop() {
       await fetch('/api/scores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ level: 1, score: puntos, completed: exitoso, timeSpent: initialTime - timeLeft, userId: localStorage.getItem('venotrain_userId') || 'default-user-id' })
+        body: JSON.stringify({
+          level: 1,
+          score: puntos,
+          completed: exitoso,
+          timeSpent: initialTime - timeLeft,
+          userId: localStorage.getItem('venotrain_userId') || 'default-user-id'
+        })
       });
     } catch (error) { console.error('Error al guardar:', error); }
   };
 
+  // Reinicio corregido: actualiza initialTime y timeLeft al mismo tiempo
   const reintentar = () => {
+    const nuevoTiempo = Math.max(5, initialTime - 5);
+    setIsTimerRunning(false);
     setZonas({ cefalica: null, mediana: null, basilica: null });
     setBanco(['cefalica', 'mediana', 'basilica']);
     setComprobado(false);
     setResultado(null);
     setVenaSeleccionada(null);
-    setInitialTime(prev => Math.max(5, prev - 5)); 
-    setGameStarted(false); 
+    setInitialTime(nuevoTiempo);
+    setTimeLeft(nuevoTiempo);
+    setGameStarted(false);
   };
 
   const EtiquetaVena = ({ idVena, origen }: { idVena: string, origen: string }) => {
     const isSelected = venaSeleccionada === idVena;
+    const enZona = origen !== 'banco';
     
     return (
       <div
         draggable={!isTouchDevice && !comprobado && isTimerRunning}
         onDragStart={(e) => handleDragStart(e, idVena, origen)}
         onClick={(e) => {
-          e.stopPropagation(); // CLAVE: Evita que el clic traspase a la zona de abajo
+          e.stopPropagation();
           if (comprobado || !isTimerRunning) return;
           if (origen === 'banco') {
             setVenaSeleccionada(prev => prev === idVena ? null : idVena);
@@ -190,7 +218,7 @@ export default function Level1DragAndDrop() {
             devolverAlBanco(origen);
           }
         }}
-        className={`px-3 py-2 rounded-lg text-sm font-semibold cursor-pointer text-center shadow-md transition-all flex items-center gap-2
+        className={`${enZona ? 'px-1.5 py-1.5 text-[11px] sm:text-xs w-full justify-center' : 'px-3 py-2 text-sm'} rounded-lg font-semibold cursor-pointer text-center shadow-md transition-all flex items-center gap-1.5
           ${isSelected ? 'ring-2 ring-cyan-400 scale-105 bg-[#334155] text-cyan-300' : ''}
           ${comprobado 
             ? (zonas[origen] === origen ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white') 
@@ -198,25 +226,25 @@ export default function Level1DragAndDrop() {
           } ${(!isTimerRunning && !comprobado) && 'opacity-50 cursor-not-allowed'}
         `}
       >
-        <Activity className="w-4 h-4 opacity-70" />
-        {VENAS_DATA[idVena as keyof typeof VENAS_DATA].nombre}
+        <Activity className="w-3.5 h-3.5 opacity-70 flex-shrink-0" />
+        <span className="leading-tight">{VENAS_DATA[idVena as keyof typeof VENAS_DATA].nombre}</span>
       </div>
     );
   };
 
-  const isTimeCritical = timeLeft <= 15 && isTimerRunning;
+  const isTimeCritical = timeLeft <= 10 && isTimerRunning;
   const timeColor = isTimeCritical ? 'text-red-500 animate-pulse' : 'text-cyan-400';
 
   if (!isAuthorized) return <div className="min-h-screen bg-[#0B1120]" />;
 
   return (
-    <main className="min-h-screen bg-[#0B1120] p-4 md:p-8 flex flex-col items-center font-sans select-none">
+    <main className="min-h-screen bg-[#0B1120] p-4 md:p-8 flex flex-col items-center font-sans select-none overflow-x-hidden">
       
       {/* HEADER */}
       <div className="max-w-6xl w-full mb-6 flex flex-col md:flex-row justify-between items-center gap-4 bg-[#0F172A] p-6 rounded-2xl border border-slate-800 shadow-xl">
         <div>
           <h1 className="text-3xl font-bold text-white mb-1">Nivel 1: Mapeo Anatómico</h1>
-          <p className="text-slate-400">Identifica la red venosa de la fosa antecubital.</p>
+          <p className="text-slate-400">Identifica la red venosa de la fosa antecubital (Brazo Derecho).</p>
         </div>
         
         {gameStarted && (
@@ -237,17 +265,17 @@ export default function Level1DragAndDrop() {
           <Activity className="w-20 h-20 text-cyan-500 mx-auto mb-6" />
           <h2 className="text-3xl font-bold text-white mb-4">Preparación de Insumos</h2>
           <p className="text-slate-300 text-lg mb-4 leading-relaxed">
-            Tu primer objetivo es identificar las 3 venas principales de la fosa antecubital. Arrastra (PC) o Toca (Móvil) las etiquetas hacia su lugar correspondiente antes de que el tiempo se agote.
+            Tu primer objetivo es identificar las 3 venas principales de la fosa antecubital en el <span className="text-cyan-400 font-bold">brazo derecho</span>. Arrastra (PC) o Toca (Móvil) las etiquetas hacia su lugar correspondiente antes de que el tiempo se agote.
           </p>
           
           <div className="bg-[#0F172A] p-4 rounded-xl border border-slate-700 mb-8 inline-block">
             <span className="text-slate-400 text-sm block mb-1">Tiempo Asignado:</span>
-            <span className={`text-3xl font-black ${initialTime < 60 ? 'text-amber-500' : 'text-cyan-400'}`}>
+            <span className={`text-3xl font-black ${initialTime < 30 ? 'text-amber-500' : 'text-cyan-400'}`}>
               {initialTime} segundos
             </span>
-            {initialTime < 60 && (
+            {initialTime < 30 && (
               <p className="text-xs text-red-400 mt-2 font-bold flex items-center justify-center gap-1">
-                <AlertCircle className="w-3 h-3" /> Penalización de tiempo activa por reintento.
+                <AlertCircle className="w-3 h-3" /> Penalización de tiempo activa por reintento (-5s).
               </p>
             )}
           </div>
@@ -261,46 +289,73 @@ export default function Level1DragAndDrop() {
         <div className="flex flex-col lg:flex-row gap-8 max-w-6xl w-full items-start">
           
           {/* Panel Izquierdo: Imagen interactiva */}
-          <div className="relative w-full lg:w-1/2 flex justify-center bg-[#0F172A] rounded-2xl p-4 border border-slate-800 shadow-2xl overflow-hidden">
-            <div className="relative w-full max-w-[350px] aspect-[4/5]">
+          <div className="relative w-full lg:w-1/2 flex flex-col items-center bg-[#0F172A] rounded-2xl p-4 sm:p-6 border border-slate-800 shadow-2xl overflow-hidden">
+            
+            {/* TÍTULO SUPERIOR DEL BRAZO DERECHO */}
+            <div className="w-full flex justify-center mb-3">
+              <div className="px-4 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs sm:text-sm font-extrabold uppercase tracking-widest shadow-md">
+                Brazo Derecho — Vista Anterior
+              </div>
+            </div>
+
+            <div className="relative w-full max-w-[370px] aspect-[4/5]">
               <img 
                 src="/images/brazo convenas.png" 
-                alt="Anatomía del brazo con venas" 
+                alt="Anatomía del brazo derecho con venas" 
                 className={`w-full h-full object-contain drop-shadow-xl transition-opacity ${!isTimerRunning && !comprobado ? 'opacity-50' : 'opacity-100'}`}
               />
 
-              {/* ZONAS DE DROP */}
+              {/* REFERENCIAS ANATÓMICAS: INTERNO Y EXTERNO */}
+              <span className="absolute top-[16%] right-[6%] text-red-400 font-bold text-sm sm:text-lg tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-none z-10">
+                Interno
+              </span>
+              <span className="absolute bottom-[32%] left-[4%] text-red-400 font-bold text-sm sm:text-lg tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] pointer-events-none z-10">
+                Externo
+              </span>
+
+              {/* ZONA DE DROP 1: Vena Cefálica (Lado Externo / Izquierdo) */}
               <div 
                 onClick={() => handleZoneClick('cefalica')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'cefalica')}
-                className={`absolute top-[25%] left-[-5%] w-32 min-h-[50px] p-2 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                className={`absolute top-[25%] left-[1%] w-[33%] min-h-[48px] p-1.5 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-20 cursor-pointer transition-colors
                   ${comprobado ? (zonas.cefalica === 'cefalica' ? 'border-emerald-500' : 'border-red-500') 
-                  : (venaSeleccionada && !zonas.cefalica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
+                  : (venaSeleccionada && !zonas.cefalica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/60')}`}
               >
-                {zonas.cefalica ? <EtiquetaVena idVena={zonas.cefalica} origen="cefalica" /> : <span className="text-xs text-slate-500 font-medium">Vacío</span>}
-                <div className="absolute right-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50 pointer-events-none"></div>
+                {zonas.cefalica ? <EtiquetaVena idVena={zonas.cefalica} origen="cefalica" /> : <span className="text-[11px] sm:text-xs text-slate-500 font-medium">Vacío</span>}
+                {/* Línea extendida hasta tocar la Vena Cefálica */}
+                <div className="absolute left-full top-1/2 -translate-y-1/2 w-[25%] h-[2px] bg-cyan-400/80 pointer-events-none flex items-center justify-end">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee] translate-x-1/2" />
+                </div>
               </div>
 
+              {/* ZONA DE DROP 2: Vena Mediana Cubital (Centro Fosa) */}
               <div 
                 onClick={() => handleZoneClick('mediana')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'mediana')}
-                className={`absolute top-[45%] right-[-10%] w-32 min-h-[50px] p-2 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                className={`absolute top-[41%] right-[1%] w-[35%] min-h-[48px] p-1.5 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-20 cursor-pointer transition-colors
                   ${comprobado ? (zonas.mediana === 'mediana' ? 'border-emerald-500' : 'border-red-500') 
-                  : (venaSeleccionada && !zonas.mediana ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
+                  : (venaSeleccionada && !zonas.mediana ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/60')}`}
               >
-                {zonas.mediana ? <EtiquetaVena idVena={zonas.mediana} origen="mediana" /> : <span className="text-xs text-slate-500 font-medium">Vacío</span>}
-                <div className="absolute left-[-25px] top-1/2 w-6 h-0.5 bg-cyan-500/50 pointer-events-none"></div>
+                {zonas.mediana ? <EtiquetaVena idVena={zonas.mediana} origen="mediana" /> : <span className="text-[11px] sm:text-xs text-slate-500 font-medium">Vacío</span>}
+                {/* Línea extendida hasta tocar la Vena Mediana Cubital */}
+                <div className="absolute right-full top-1/2 -translate-y-1/2 w-[48%] h-[2px] bg-cyan-400/80 pointer-events-none flex items-center justify-start">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee] -translate-x-1/2" />
+                </div>
               </div>
 
+              {/* ZONA DE DROP 3: Vena Basílica (Lado Interno / Derecho) */}
               <div 
                 onClick={() => handleZoneClick('basilica')}
                 onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'basilica')}
-                className={`absolute bottom-[20%] right-[-15%] w-32 min-h-[50px] p-2 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-10 cursor-pointer transition-colors
+                className={`absolute bottom-[18%] right-[1%] w-[35%] min-h-[48px] p-1.5 border-2 border-dashed rounded-lg flex items-center justify-center bg-[#0B1120]/90 backdrop-blur-sm z-20 cursor-pointer transition-colors
                   ${comprobado ? (zonas.basilica === 'basilica' ? 'border-emerald-500' : 'border-red-500') 
-                  : (venaSeleccionada && !zonas.basilica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/50')}`}
+                  : (venaSeleccionada && !zonas.basilica ? 'border-amber-400 bg-amber-900/30' : 'border-cyan-500/60')}`}
               >
-                {zonas.basilica ? <EtiquetaVena idVena={zonas.basilica} origen="basilica" /> : <span className="text-xs text-slate-500 font-medium">Vacío</span>}
-                <div className="absolute left-[-20px] top-1/2 w-5 h-0.5 bg-cyan-500/50 pointer-events-none"></div>
+                {zonas.basilica ? <EtiquetaVena idVena={zonas.basilica} origen="basilica" /> : <span className="text-[11px] sm:text-xs text-slate-500 font-medium">Vacío</span>}
+                {/* Línea extendida hasta tocar la Vena Basílica */}
+                <div className="absolute right-full top-1/2 -translate-y-1/2 w-[40%] h-[2px] bg-cyan-400/80 pointer-events-none flex items-center justify-start">
+                  <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee] -translate-x-1/2" />
+                </div>
               </div>
             </div>
           </div>
